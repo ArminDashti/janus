@@ -1,0 +1,53 @@
+{
+  "window": { "maximized": true },
+  "startup": { "runOnLogin": false },
+  "dataPath": "./data",
+  "platforms": [],
+  "projectRoots": [],
+  "github": {
+    "pat": "",
+    "patValid": false,
+    "patValidatedAt": null
+  },
+  "activeApiProvider": "openRouter",
+  "openRouter": {
+    "apiKey": "",
+    "model": "openai/gpt-4o-mini"
+  },
+  "cursorApi": {
+    "apiKey": "",
+    "model": "composer-2.5"
+  },
+  "repoBank": {
+    "url": "",
+    "localClonePath": "./data/repo-bank",
+    "lastFetchAt": null,
+    "lastPushAt": null
+  },
+  "hub": {
+    "baseUrl": "https://github.com/armindashti/janus-hub",
+    "catalogUrl": "https://github.com/armindashti/janus-hub/hub/manifest.json",
+    "lastFetchAt": null
+  },
+  "sync": {
+    "enabled": true,
+    "intervalMinutes": 30,
+    "lastSyncAt": null
+  },
+  "assignments": {
+    "skills": {},
+    "rules": {},
+    "mcps": {},
+    "hooks": {},
+    "subAgents": {},
+    "tools": {}
+  },
+  "mandatoryForAllProjects": {
+    "skills": {},
+    "rules": {},
+    "hooks": {},
+    "subAgents": {},
+    "tools": {}
+  },
+  "uiFilters": {}
+}

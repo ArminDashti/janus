@@ -1,0 +1,275 @@
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import type {
+  HookResource,
+  ResourceType,
+  RuleResource,
+  SkillResource,
+  SubAgentResource,
+  ToolResource
+} from '@shared/types'
+import { isMarkdownFile } from '@shared/utils.browser'
+import { FileTree } from '@renderer/components/FileTree'
+import { MarkdownEditor } from '@renderer/components/MarkdownEditor'
+import { JsonEditor } from '@renderer/components/JsonEditor'
+import { TwoPanelLayout } from '@renderer/components/layout/TwoPanelLayout'
+import { ResourceSubViewHeader } from './ResourceListView'
+import { OpenRouterRefactorModal } from './OpenRouterRefactorModal'
+import { showMessage } from '@renderer/stores/messageStore'
+
+function fileBaseName(path: string): string {
+  return path.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? path
+}
+
+async function confirmSave(filePath: string): Promise<boolean> {
+  return showMessage({
+    message: `Save changes to ${fileBaseName(filePath)}?`,
+    confirm: true
+  })
+}
+
+type ListableResourceType = Exclude<ResourceType, 'mcp'>
+type CanonicalResource =
+  | SkillResource
+  | RuleResource
+  | HookResource
+  | SubAgentResource
+  | ToolResource
+
+type RefactorableType = 'skill' | 'rule' | 'hook' | 'subAgent'
+
+interface ResourceEditViewProps {
+  resourceType: ListableResourceType
+  resourceName: string
+  onBack: () => void
+}
+
+function isRefactorable(resourceType: ListableResourceType): resourceType is RefactorableType {
+  return (
+    resourceType === 'skill' ||
+    resourceType === 'rule' ||
+    resourceType === 'hook' ||
+    resourceType === 'subAgent'
+  )
+}
+
+function getFiles(resource: CanonicalResource, resourceType: ListableResourceType): string[] {
+  switch (resourceType) {
+    case 'skill':
+      return (resource as SkillResource).files
+    case 'rule':
+      return [(resource as RuleResource).filePath]
+    case 'hook': {
+      const h = resource as HookResource
+      const list = [...h.scriptFiles]
+      if (!list.includes(h.configPath)) list.unshift(h.configPath)
+      return list
+    }
+    case 'subAgent':
+      return [(resource as SubAgentResource).filePath]
+    case 'tool':
+      return (resource as ToolResource).files
+    default:
+      return []
+  }
+}
+
+function getRootPath(resource: CanonicalResource, resourceType: ListableResourceType): string | undefined {
+  switch (resourceType) {
+    case 'skill':
+      return (resource as SkillResource).rootPath
+    case 'tool':
+      return (resource as ToolResource).rootPath
+    default:
+      return undefined
+  }
+}
+
+function getDefaultFile(resource: CanonicalResource, resourceType: ListableResourceType): string {
+  switch (resourceType) {
+    case 'skill':
+      return (resource as SkillResource).skillMdPath
+    case 'rule':
+      return (resource as RuleResource).filePath
+    case 'hook': {
+      const h = resource as HookResource
+      return h.scriptPath ?? h.configPath
+    }
+    case 'subAgent':
+      return (resource as SubAgentResource).filePath
+    case 'tool': {
+      const t = resource as ToolResource
+      return t.files.find((f) => f.endsWith('tool.json')) ?? t.files[0] ?? t.rootPath
+    }
+    default:
+      return ''
+  }
+}
+
+export function ResourceEditView({ resourceType, resourceName, onBack }: ResourceEditViewProps) {
+  const [resource, setResource] = useState<CanonicalResource | null>(null)
+  const [selectedFile, setSelectedFile] = useState<string | null>(null)
+  const [content, setContent] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [showRefactor, setShowRefactor] = useState(false)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const canonical = await window.agentManager.getCanonicalResource(resourceType, resourceName)
+      if (!canonical) {
+        setResource(null)
+        return
+      }
+      setResource(canonical)
+      const file = getDefaultFile(canonical, resourceType)
+      setSelectedFile(file)
+      setContent(await window.agentManager.readFile(file))
+    } finally {
+      setLoading(false)
+    }
+  }, [resourceType, resourceName])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  const files = useMemo(
+    () => (resource ? getFiles(resource, resourceType) : []),
+    [resource, resourceType]
+  )
+
+  const openFile = async (path: string) => {
+    setSelectedFile(path)
+    setContent(await window.agentManager.readFile(path))
+  }
+
+  const refactorable = isRefactorable(resourceType)
+
+  if (loading) {
+    return (
+      <div className="flex flex-col h-full">
+        <ResourceSubViewHeader title={`Edit: ${resourceName}`} onBack={onBack} />
+        <div className="flex-1 flex items-center justify-center text-zinc-500 text-sm">Loading…</div>
+      </div>
+    )
+  }
+
+  if (!resource) {
+    return (
+      <div className="flex flex-col h-full">
+        <ResourceSubViewHeader title={`Edit: ${resourceName}`} onBack={onBack} />
+        <div className="flex-1 flex items-center justify-center text-zinc-500 text-sm">
+          Resource not found
+        </div>
+      </div>
+    )
+  }
+
+  const showTree = resourceType !== 'rule' && resourceType !== 'subAgent' && files.length > 1
+
+  return (
+    <div className="flex flex-col h-full">
+      <ResourceSubViewHeader
+        title={`Edit: ${resource.name}`}
+        onBack={onBack}
+        actions={
+          refactorable ? (
+            <button
+              type="button"
+              onClick={() => setShowRefactor(true)}
+              className="px-3 py-1.5 text-sm bg-violet-700 hover:bg-violet-600 rounded"
+            >
+              Edit by AI
+            </button>
+          ) : undefined
+        }
+      />
+      <div className="flex-1 min-h-0">
+        {showTree ? (
+          <TwoPanelLayout
+            autoSaveId={`edit-${resourceType}-panels`}
+            left={
+              <FileTree
+                files={files}
+                selected={selectedFile ?? undefined}
+                onSelect={(p) => void openFile(p)}
+                rootPath={getRootPath(resource, resourceType)}
+              />
+            }
+            right={
+              selectedFile ? (
+              <EditorPane filePath={selectedFile} content={content} onChange={setContent} resourceType={resourceType} resourceName={resourceName} />
+            ) : (
+              <div className="h-full flex items-center justify-center text-zinc-500 text-sm">
+                Select a file
+              </div>
+            )
+            }
+          />
+        ) : (
+          <div className="h-full p-2">
+            {selectedFile && (
+              <EditorPane filePath={selectedFile} content={content} onChange={setContent} resourceType={resourceType} resourceName={resourceName} />
+            )}
+          </div>
+        )}
+      </div>
+      {showRefactor && refactorable && selectedFile && (
+        <OpenRouterRefactorModal
+          resourceType={resourceType}
+          resourceName={resourceName}
+          initialContent={content}
+          initialFilePath={selectedFile}
+          onClose={() => setShowRefactor(false)}
+          onApplied={(next, path) => {
+            if (path === selectedFile) setContent(next)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+function EditorPane({
+  filePath,
+  content,
+  onChange,
+  resourceType,
+  resourceName
+}: {
+  filePath: string
+  content: string
+  onChange: (v: string) => void
+  resourceType?: ListableResourceType
+  resourceName?: string
+}) {
+  const isMd = isMarkdownFile(filePath) || filePath.endsWith('.py')
+  const isSkillMd = resourceType === 'skill' && fileBaseName(filePath) === 'SKILL.md'
+  if (isMd) {
+    return (
+      <MarkdownEditor
+        filePath={filePath}
+        value={content}
+        onChange={onChange}
+        onSave={async (v) => {
+          if (!(await confirmSave(filePath))) return
+          if (isSkillMd && resourceName) {
+            await window.agentManager.writeSkillMd(filePath, v, resourceName)
+          } else {
+            await window.agentManager.writeFile(filePath, v)
+          }
+        }}
+      />
+    )
+  }
+  return (
+    <JsonEditor
+      value={content}
+      onChange={onChange}
+      onSave={async (v) => {
+        if (!(await confirmSave(filePath))) return
+        await window.agentManager.writeFile(filePath, v)
+      }}
+    />
+  )
+}

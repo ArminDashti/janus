@@ -1,0 +1,20 @@
+name: janus
+
+services:
+  janus-webui:
+    image: ${IMAGE_TAG:-janus-webui:latest}
+    container_name: janus-webui
+    restart: "no"
+    expose:
+      - "${INTERNAL_PORT:-80}"
+    ports:
+      - target: ${INTERNAL_PORT:-80}
+        published: ${PUBLISH_PORT-8006}
+        protocol: tcp
+    networks:
+      - app_net
+
+networks:
+  app_net:
+    name: ${DOCKER_NETWORK:-janus-net}
+    external: true

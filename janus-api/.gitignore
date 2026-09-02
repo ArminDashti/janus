@@ -1,0 +1,29 @@
+*.exe
+node_modules/
+dist/
+settings.json
+imported-projects.json
+.trash/
+*.log
+.env
+.env.local
+data/
+# --- auto: large files (>5MB) ---
+
+# auto-managed large files (>5MB)
+
+# === auto-managed large files (>5MB) ===
+
+# BEGIN AUTO-MANAGED LARGE FILES (>5MB)
+# END AUTO-MANAGED LARGE FILES
+
+# === auto-managed large files (github-commit-push-all) ===
+
+# AUTO-IGNORE-LARGE-FILES (>5MB) â€” managed by github-commit-push-all
+# github-commit-push-all: large files (>5MB) — auto-managed
+
+# auto-managed: files > 5MB
+node_modules/@cursor/sdk-win32-x64/bin/rg.exe
+node_modules/@esbuild/win32-x64/esbuild.exe
+node_modules/typescript/lib/_tsc.js
+node_modules/typescript/lib/typescript.js
