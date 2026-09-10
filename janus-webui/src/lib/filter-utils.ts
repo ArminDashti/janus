@@ -15,13 +15,9 @@ export function filterStorageKey(resourceType: ListableResourceType): string {
   return FILTER_KEYS[resourceType]
 }
 
-/** Types whose project dropdown uses Global (~/.cursor) instead of All projects. */
-export function usesGlobalScope(resourceType: ListableResourceType): boolean {
-  return resourceType === 'skill' || resourceType === 'hook' || resourceType === 'subAgent'
-}
-
-export function defaultSelectedProjectId(resourceType: ListableResourceType): string {
-  return usesGlobalScope(resourceType) ? GLOBAL_KEY : ALL_PROJECTS_KEY
+/** Default list filter: show every item (All). */
+export function defaultSelectedProjectId(_resourceType?: ListableResourceType): string {
+  return ALL_PROJECTS_KEY
 }
 
 export const DEFAULT_UI_FILTER: UiFilterState = {
@@ -50,15 +46,13 @@ export function mergeUiFilter(
     ...rest
   } = legacy
 
-  const defaultProjectId = resourceType
-    ? defaultSelectedProjectId(resourceType)
-    : DEFAULT_UI_FILTER.selectedProjectId
+  const defaultProjectId = defaultSelectedProjectId(resourceType)
 
   let selectedProjectId = rest.selectedProjectId ?? defaultProjectId
 
-  // Migrate old "All projects" sentinel → Global for skills/hooks/sub-agents
-  if (resourceType && usesGlobalScope(resourceType) && selectedProjectId === ALL_PROJECTS_KEY) {
-    selectedProjectId = GLOBAL_KEY
+  // Migrate old Global list filter → All
+  if (selectedProjectId === GLOBAL_KEY) {
+    selectedProjectId = ALL_PROJECTS_KEY
   }
 
   return {

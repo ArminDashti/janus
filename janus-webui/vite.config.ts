@@ -20,8 +20,8 @@ export default defineConfig({
         name: 'Janus',
         short_name: 'Janus',
         description: 'Manage Skills, Rules, MCPs, Hooks, Sub-agents, and Tools across AI platforms',
-        theme_color: '#09090b',
-        background_color: '#09090b',
+        theme_color: '#1E1E1E',
+        background_color: '#1E1E1E',
         display: 'standalone',
         start_url: '/',
         icons: [

@@ -8,6 +8,7 @@ export type PageId =
   | 'subagents'
   | 'mcps'
   | 'tools'
+  | 'repositories'
   | 'settings'
   | 'instructions'
   | 'about'

@@ -4,25 +4,21 @@ import { ChevronDown } from 'lucide-react'
 import type { ProjectInfo } from '@shared/types'
 import { ALL_PROJECTS_FILTER_KEY, GLOBAL_TARGET_KEY } from '@shared/types'
 
-/** Sentinel for Rules: no project filter (show all). */
+/** Sentinel: no project filter (show all). */
 export const ALL_PROJECTS_KEY = ALL_PROJECTS_FILTER_KEY
-/** Sentinel for Skills / Hooks / Sub-agents: Cursor ~/.cursor only. */
+/** Kept for create/assign into Cursor ~/.cursor — not used as a list filter. */
 export const GLOBAL_KEY = GLOBAL_TARGET_KEY
-
-export type ProjectFilterScopeMode = 'global' | 'allProjects'
 
 interface ProjectFilterDropdownProps {
   projects: ProjectInfo[]
   selectedProjectId: string
   onChange: (projectId: string) => void
-  scopeMode?: ProjectFilterScopeMode
 }
 
 export function ProjectFilterDropdown({
   projects,
   selectedProjectId,
-  onChange,
-  scopeMode = 'allProjects'
+  onChange
 }: ProjectFilterDropdownProps) {
   const [open, setOpen] = useState(false)
   const [menuPos, setMenuPos] = useState<{ top: number; left: number; minWidth: number } | null>(
@@ -31,8 +27,8 @@ export function ProjectFilterDropdown({
   const rootRef = useRef<HTMLDivElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
-  const topKey = scopeMode === 'global' ? GLOBAL_KEY : ALL_PROJECTS_KEY
-  const topLabel = scopeMode === 'global' ? 'Global' : 'All projects'
+  const topKey = ALL_PROJECTS_KEY
+  const topLabel = 'All'
 
   const updatePosition = () => {
     const el = rootRef.current
@@ -77,7 +73,7 @@ export function ProjectFilterDropdown({
   }, [open])
 
   const label = useMemo(() => {
-    if (selectedProjectId === topKey) return topLabel
+    if (selectedProjectId === topKey || selectedProjectId === GLOBAL_KEY) return topLabel
     const project = projects.find((p) => p.id === selectedProjectId)
     return project?.name ?? topLabel
   }, [projects, selectedProjectId, topKey, topLabel])
@@ -103,7 +99,9 @@ export function ProjectFilterDropdown({
                 setOpen(false)
               }}
               className={`block w-full text-left px-3 py-2 text-sm hover:bg-zinc-800 ${
-                selectedProjectId === topKey ? 'text-blue-400' : 'text-zinc-300'
+                selectedProjectId === topKey || selectedProjectId === GLOBAL_KEY
+                  ? 'text-blue-400'
+                  : 'text-zinc-300'
               }`}
             >
               {topLabel}

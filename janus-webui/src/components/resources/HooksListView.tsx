@@ -6,7 +6,7 @@ import { ResourceTable } from './ResourceTable'
 import { ResourceListToolbar } from './ResourceListToolbar'
 import { StructureWarningIcon } from './StructureWarningIcon'
 import { useAppStore } from '@renderer/stores/appStore'
-import { GLOBAL_KEY } from './ProjectFilterDropdown'
+import { ALL_PROJECTS_KEY, GLOBAL_KEY } from './ProjectFilterDropdown'
 
 interface HooksListViewProps {
   summaries: ResourceGroupSummary[]
@@ -17,6 +17,8 @@ interface HooksListViewProps {
   onAdd?: () => void
   onRename?: (oldName: string, newName: string) => Promise<void>
   onDelete: (name: string) => Promise<void>
+  showProjectFilter?: boolean
+  hideHeader?: boolean
 }
 
 function buildHookColumns(
@@ -118,7 +120,9 @@ export function HooksListView({
   onEdit,
   onAdd,
   onRename,
-  onDelete
+  onDelete,
+  showProjectFilter = true,
+  hideHeader = false
 }: HooksListViewProps) {
   const { settings } = useAppStore()
   const { search, selectedProjectId, sortKey, sortDir } = filterState
@@ -139,9 +143,7 @@ export function HooksListView({
         [r.name, r.description, r.event].join(' ').toLowerCase().includes(q)
       )
     }
-    if (selectedProjectId === GLOBAL_KEY) {
-      rows = rows.filter((r) => r.inGlobal)
-    } else {
+    if (selectedProjectId !== ALL_PROJECTS_KEY && selectedProjectId !== GLOBAL_KEY) {
       rows = rows.filter((r) => r.assignedProjectIds.includes(selectedProjectId))
     }
     return [...rows].sort((a, b) => {
@@ -172,16 +174,17 @@ export function HooksListView({
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <header className="px-4 py-3 border-b border-zinc-800">
-        <h2 className="text-lg font-medium">Hooks</h2>
-        <p className="text-xs text-zinc-500 mt-0.5">Cursor only</p>
-      </header>
+      {!hideHeader && (
+        <header className="px-4 py-3 border-b border-zinc-800">
+          <h2 className="text-lg font-medium">Hooks</h2>
+          <p className="text-xs text-zinc-500 mt-0.5">Cursor only</p>
+        </header>
+      )}
       <ResourceListToolbar
         search={search}
         onSearchChange={(value) => onFilterChange({ search: value })}
         onAdd={onAdd}
-        showProjectFilter
-        projectFilterScopeMode="global"
+        showProjectFilter={showProjectFilter}
         projects={projects}
         selectedProjectId={selectedProjectId}
         onProjectFilterChange={(value) => onFilterChange({ selectedProjectId: value })}

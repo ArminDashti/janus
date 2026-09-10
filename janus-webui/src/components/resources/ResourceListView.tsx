@@ -7,10 +7,8 @@ import { ResourceListToolbar } from './ResourceListToolbar'
 import { ResourceDirTree } from './ResourceDirTree'
 import { StructureWarningIcon } from './StructureWarningIcon'
 import { ALL_PROJECTS_KEY, GLOBAL_KEY } from './ProjectFilterDropdown'
-import { UNCATEGORIZED_KEY } from './CategoryFilterDropdown'
 import { showMessage } from '@renderer/stores/messageStore'
 import { useAppStore } from '@renderer/stores/appStore'
-import { usesGlobalScope } from '@renderer/lib/filter-utils'
 
 type ListableResourceType = Exclude<ResourceType, 'mcp'>
 
@@ -25,6 +23,10 @@ interface ResourceListViewProps {
   onRefresh?: () => void
   onAdd?: () => void
   onApplyAll?: () => void
+  /** When false, hide the project dropdown (e.g. Repositories page). Default: enhanced types only. */
+  showProjectFilter?: boolean
+  /** Hide the page title header when embedded in another layout. */
+  hideHeader?: boolean
 }
 
 function isEnhancedGrid(
@@ -36,12 +38,6 @@ function isEnhancedGrid(
     resourceType === 'hook' ||
     resourceType === 'subAgent'
   )
-}
-
-function hasCategoryColumn(
-  resourceType: ListableResourceType
-): resourceType is 'skill' | 'rule' {
-  return resourceType === 'skill' || resourceType === 'rule'
 }
 
 function isRenamable(
@@ -58,16 +54,8 @@ function shortContentHash(hash: string | undefined): string {
   return hash ? hash.slice(0, 6) : ''
 }
 
-function matchesProjectScope(
-  row: ResourceGroupSummary,
-  selectedProjectId: string,
-  useGlobal: boolean
-): boolean {
-  if (useGlobal) {
-    if (selectedProjectId === GLOBAL_KEY) return row.inGlobal
-    return row.assignedProjectIds.includes(selectedProjectId)
-  }
-  if (selectedProjectId === ALL_PROJECTS_KEY) return true
+function matchesProjectScope(row: ResourceGroupSummary, selectedProjectId: string): boolean {
+  if (selectedProjectId === ALL_PROJECTS_KEY || selectedProjectId === GLOBAL_KEY) return true
   return row.assignedProjectIds.includes(selectedProjectId)
 }
 
@@ -81,7 +69,9 @@ export function ResourceListView({
   onEdit,
   onRefresh,
   onAdd,
-  onApplyAll
+  onApplyAll,
+  showProjectFilter,
+  hideHeader = false
 }: ResourceListViewProps) {
   const { settings } = useAppStore()
   const [summaries, setSummaries] = useState<ResourceGroupSummary[]>([])
@@ -89,19 +79,14 @@ export function ResourceListView({
   const summariesRef = useRef(summaries)
   summariesRef.current = summaries
 
-  const { search, selectedProjectId, selectedCategories, sortKey, sortDir } = filterState
-  const selectedCategorySet = useMemo(
-    () => new Set(selectedCategories),
-    [selectedCategories]
-  )
+  const { search, selectedProjectId, sortKey, sortDir } = filterState
 
   const [selectedDirPath, setSelectedDirPath] = useState<string | null>(null)
 
   const enhanced = isEnhancedGrid(resourceType)
-  const showCategory = hasCategoryColumn(resourceType)
   const renamable = isRenamable(resourceType)
   const showInstall = resourceType === 'rule' && Boolean(onAssign)
-  const globalScope = usesGlobalScope(resourceType)
+  const projectFilterVisible = showProjectFilter ?? enhanced
 
   const hasNestedDirs = useMemo(
     () => summaries.some((s) => s.name.includes('/')),
@@ -129,15 +114,6 @@ export function ResourceListView({
     return () => window.removeEventListener('scan-changed', handler)
   }, [load])
 
-  const categories = useMemo(() => {
-    if (!showCategory) return []
-    const cats = new Set<string>()
-    for (const row of summaries) {
-      if (row.category.trim()) cats.add(row.category.trim())
-    }
-    return [...cats].sort((a, b) => a.localeCompare(b))
-  }, [summaries, showCategory])
-
   const projects = useMemo(
     () =>
       settings?.projectRoots
@@ -154,26 +130,16 @@ export function ResourceListView({
     if (search.trim()) {
       const q = search.trim().toLowerCase()
       rows = rows.filter((r) => {
-        const haystack = [r.name, r.description, r.category].join(' ').toLowerCase()
+        const haystack = [r.name, r.description].join(' ').toLowerCase()
         return haystack.includes(q)
       })
     }
-    if (enhanced) {
-      rows = rows.filter((r) => matchesProjectScope(r, selectedProjectId, globalScope))
-    }
-    if (showCategory && selectedCategorySet.size > 0) {
-      rows = rows.filter((r) => {
-        const cat = r.category.trim()
-        if (!cat && selectedCategorySet.has(UNCATEGORIZED_KEY)) return true
-        if (cat && selectedCategorySet.has(cat)) return true
-        return false
-      })
+    if (enhanced || selectedProjectId !== ALL_PROJECTS_KEY) {
+      rows = rows.filter((r) => matchesProjectScope(r, selectedProjectId))
     }
     const sorted = [...rows].sort((a, b) => {
       const dir = sortDir === 'asc' ? 1 : -1
       switch (sortKey) {
-        case 'category':
-          return a.category.localeCompare(b.category) * dir
         case 'description':
           return a.description.localeCompare(b.description) * dir
         case 'projects':
@@ -195,14 +161,10 @@ export function ResourceListView({
     summaries,
     search,
     selectedDirPath,
-    selectedCategorySet,
     selectedProjectId,
     sortKey,
     sortDir,
-    showCategory,
-    enhanced,
-    globalScope,
-    resourceType
+    enhanced
   ])
 
   const handleSort = (key: string) => {
@@ -211,13 +173,6 @@ export function ResourceListView({
     } else {
       onFilterChange({ sortKey: key, sortDir: 'asc' })
     }
-  }
-
-  const handleCategoryChange = async (opKey: string, category: string) => {
-    if (!showCategory) return
-    await window.agentManager.setResourceCategory(resourceType, opKey, category)
-    await load()
-    onRefresh?.()
   }
 
   const handleRename = async (opKey: string, newName: string) => {
@@ -293,33 +248,6 @@ export function ResourceListView({
           <Trash size={15} strokeWidth={1.75} />
         </button>
       </div>
-    )
-  }
-
-  const categoryColumn = {
-    key: 'category',
-    label: 'Category',
-    sortable: true,
-    className: 'w-36',
-    render: (row: ResourceGroupSummary) => (
-      <input
-        type="text"
-        defaultValue={row.category}
-        key={`${resourceOpKey(row)}-${row.category}`}
-        placeholder="—"
-        onClick={stopProp}
-        onBlur={(e) => {
-          if (e.target.value.trim() !== row.category) {
-            void handleCategoryChange(resourceOpKey(row), e.target.value)
-          }
-        }}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            e.currentTarget.blur()
-          }
-        }}
-        className="w-full bg-transparent border border-transparent hover:border-zinc-700 focus:border-zinc-600 rounded px-1 py-0.5 text-sm text-zinc-300"
-      />
     )
   }
 
@@ -429,32 +357,22 @@ export function ResourceListView({
     actionsColumn
   ]
 
-  const columns = enhanced
-    ? showCategory
-      ? [categoryColumn, ...enhancedBaseColumns]
-      : enhancedBaseColumns
-    : legacyColumns
+  const columns = enhanced ? enhancedBaseColumns : legacyColumns
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <header className="px-4 py-3 border-b border-zinc-800">
-        <h2 className="text-lg font-medium">{title}</h2>
-        {subtitle && <p className="text-xs text-zinc-500 mt-0.5">{subtitle}</p>}
-      </header>
+      {!hideHeader && (
+        <header className="px-4 py-3 border-b border-zinc-800">
+          <h2 className="text-lg font-medium">{title}</h2>
+          {subtitle && <p className="text-xs text-zinc-500 mt-0.5">{subtitle}</p>}
+        </header>
+      )}
       <ResourceListToolbar
         search={search}
         onSearchChange={(value) => onFilterChange({ search: value })}
         onAdd={onAdd}
         onApplyAll={onApplyAll}
-        selectedCategories={showCategory ? selectedCategorySet : undefined}
-        onCategoryFilterChange={
-          showCategory
-            ? (selected) => onFilterChange({ selectedCategories: [...selected] })
-            : undefined
-        }
-        categories={showCategory ? categories : undefined}
-        showProjectFilter={enhanced}
-        projectFilterScopeMode={globalScope ? 'global' : 'allProjects'}
+        showProjectFilter={projectFilterVisible}
         projects={projects}
         selectedProjectId={selectedProjectId}
         onProjectFilterChange={(value) => onFilterChange({ selectedProjectId: value })}

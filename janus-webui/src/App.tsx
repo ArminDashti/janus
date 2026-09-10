@@ -16,6 +16,8 @@ import { McpsPage } from '@renderer/pages/McpsPage'
 
 import { ToolsPage } from '@renderer/pages/ToolsPage'
 
+import { RepositoriesPage } from '@renderer/pages/RepositoriesPage'
+
 import { SettingsPage } from '@renderer/pages/SettingsPage'
 
 import { AboutPage } from '@renderer/pages/AboutPage'
@@ -93,6 +95,10 @@ export default function App() {
       case 'tools':
 
         return <ToolsPage />
+
+      case 'repositories':
+
+        return <RepositoriesPage />
 
       case 'settings':
 

@@ -1,8 +1,4 @@
-import { CategoryFilterDropdown } from './CategoryFilterDropdown'
-import {
-  ProjectFilterDropdown,
-  type ProjectFilterScopeMode
-} from './ProjectFilterDropdown'
+import { ProjectFilterDropdown } from './ProjectFilterDropdown'
 import type { ProjectInfo } from '@shared/types'
 
 interface ResourceListToolbarProps {
@@ -12,14 +8,10 @@ interface ResourceListToolbarProps {
   addLabel?: string
   onApplyAll?: () => void
   applyAllLabel?: string
-  selectedCategories?: Set<string>
-  onCategoryFilterChange?: (selected: Set<string>) => void
-  categories?: string[]
   projects?: ProjectInfo[]
   selectedProjectId?: string
   onProjectFilterChange?: (projectId: string) => void
   showProjectFilter?: boolean
-  projectFilterScopeMode?: ProjectFilterScopeMode
 }
 
 export function ResourceListToolbar({
@@ -29,14 +21,10 @@ export function ResourceListToolbar({
   addLabel = 'Add',
   onApplyAll,
   applyAllLabel = 'Apply all to projects',
-  selectedCategories,
-  onCategoryFilterChange,
-  categories = [],
   projects = [],
   selectedProjectId,
   onProjectFilterChange,
-  showProjectFilter = false,
-  projectFilterScopeMode = 'allProjects'
+  showProjectFilter = false
 }: ResourceListToolbarProps) {
   return (
     <div className="flex items-center gap-2 px-4 py-2.5 border-b border-zinc-800 flex-nowrap overflow-visible">
@@ -52,14 +40,6 @@ export function ResourceListToolbar({
           projects={projects}
           selectedProjectId={selectedProjectId}
           onChange={onProjectFilterChange}
-          scopeMode={projectFilterScopeMode}
-        />
-      )}
-      {onCategoryFilterChange && selectedCategories && (
-        <CategoryFilterDropdown
-          categories={categories}
-          selected={selectedCategories}
-          onChange={onCategoryFilterChange}
         />
       )}
       <div className="ml-auto flex items-center gap-2 shrink-0">
