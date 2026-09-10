@@ -1,12 +1,13 @@
 import type { AppSettings, PlatformConfig, PlatformId } from '@shared/types'
-import { DEFAULT_PLATFORM_ROOTS, PLATFORM_IDS } from '@shared/types'
+import { DEFAULT_PLATFORM_PROJECT_DIRS, DEFAULT_PLATFORM_ROOTS, PLATFORM_IDS } from '@shared/types'
 import { expandHome } from '@shared/utils'
 
 export function createDefaultSettings(): AppSettings {
   const platforms: PlatformConfig[] = PLATFORM_IDS.map((id) => ({
     id,
     enabled: id === 'cursor',
-    rootPath: expandHome(DEFAULT_PLATFORM_ROOTS[id])
+    rootPath: expandHome(DEFAULT_PLATFORM_ROOTS[id]),
+    projectDirName: DEFAULT_PLATFORM_PROJECT_DIRS[id]
   }))
 
   return {

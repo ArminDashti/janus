@@ -102,12 +102,6 @@ export const agentManagerClient: AgentManagerApi = {
       body: JSON.stringify({ mandatory })
     }),
 
-  setResourceCategory: (resourceType, resourceName, category) =>
-    request<boolean>(`/api/resources/${resourceType}/${encodeURIComponent(resourceName)}/category`, {
-      method: 'POST',
-      body: JSON.stringify({ category })
-    }),
-
   renameResource: (resourceType, oldName, newName) =>
     request<boolean>(`/api/resources/${resourceType}/rename`, {
       method: 'POST',
@@ -139,10 +133,10 @@ export const agentManagerClient: AgentManagerApi = {
       body: JSON.stringify({ name, params })
     }),
 
-  addPlatform: (id, rootPath) =>
+  addPlatform: (id, rootPath, projectDirName) =>
     request<AppSettings>('/api/platforms', {
       method: 'POST',
-      body: JSON.stringify({ id, rootPath })
+      body: JSON.stringify({ id, rootPath, projectDirName })
     }),
 
   addProjectRoot: (scanPath) =>

@@ -1,8 +1,14 @@
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { createDefaultSettings } from '../shared/defaults'
 import type { AppSettings } from '../shared/types'
-import { PLATFORM_IDS } from '../shared/types'
+import {
+  DEFAULT_PLATFORM_PROJECT_DIRS,
+  DEFAULT_PLATFORM_ROOTS,
+  PLATFORM_IDS,
+  type PlatformId
+} from '../shared/types'
 import { ruleDisplayName } from '../shared/rule-names'
+import { expandHome, isSystemProfilePath } from '../shared/utils'
 import { getSettingsPath } from '../app-paths'
 import { importedProjectsStore } from './imported-projects-store'
 
@@ -39,24 +45,33 @@ function migrateSettings(settings: AppSettings): AppSettings {
   }
 
   const knownIds = new Set<string>(PLATFORM_IDS)
-  merged.platforms = merged.platforms.filter((p) => knownIds.has(p.id))
+  merged.platforms = (settings.platforms ?? defaults.platforms)
+    .filter((p) => knownIds.has(p.id))
+    .map((p) => {
+      const id = p.id as PlatformId
+      const trimmed = (p.rootPath ?? '').trim()
+      const needsRewrite = !trimmed || isSystemProfilePath(trimmed)
+      const rootPath = needsRewrite
+        ? expandHome(DEFAULT_PLATFORM_ROOTS[id])
+        : trimmed
+      const projectDirName =
+        typeof p.projectDirName === 'string' && p.projectDirName.trim()
+          ? p.projectDirName.trim()
+          : DEFAULT_PLATFORM_PROJECT_DIRS[id]
+      return {
+        id,
+        enabled: Boolean(p.enabled),
+        rootPath,
+        projectDirName
+      }
+    })
+
   for (const id of PLATFORM_IDS) {
     if (!merged.platforms.some((p) => p.id === id)) {
       const defaultPlatform = defaults.platforms.find((p) => p.id === id)
       if (defaultPlatform) merged.platforms.push(defaultPlatform)
     }
   }
-  // Product rule: only Cursor is enabled; Settings Platforms UI is frozen to Cursor.
-  merged.platforms = merged.platforms.map((p) => {
-    if (p.id === 'cursor') {
-      return {
-        ...p,
-        enabled: true,
-        rootPath: p.rootPath.trim() || defaults.platforms.find((d) => d.id === 'cursor')!.rootPath
-      }
-    }
-    return { ...p, enabled: false }
-  })
 
   merged.uiFilters = {
     ...defaults.uiFilters,

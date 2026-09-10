@@ -37,7 +37,7 @@ function collectWatchPaths(): string[] {
         if (!platform.enabled) continue
         const adapter = getAdapter(platform.id)
         if (!adapter) continue
-        const projectPaths = adapter.getProjectPaths(project.path)
+        const projectPaths = adapter.getProjectPaths(project.path, platform.projectDirName)
 
         if (platform.id === 'cursor') {
           const candidates = [

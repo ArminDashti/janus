@@ -1,11 +1,11 @@
 import { createHash } from 'crypto'
+import { existsSync, readFileSync } from 'fs'
 import { homedir } from 'os'
-import { join } from 'path'
+import { dirname, join } from 'path'
 
 export {
   isMarkdownFile,
   parseFrontmatter,
-  defaultCategoryFromName,
   skillGroupKey,
   parseSkillGroupKey,
   skillFolderNameFromKey
@@ -32,12 +32,63 @@ export {
   type ResourceMeta
 } from './resource-meta'
 
+/** True when a path is under the Windows LocalSystem profile (service account). */
+export function isSystemProfilePath(path: string): boolean {
+  const normalized = path.replace(/\\/g, '/').toLowerCase()
+  return normalized.includes('/systemprofile/') || normalized.includes('/system32/config/systemprofile')
+}
+
+function readInstallUserHome(): string | null {
+  const envHome = process.env.JANUS_USER_HOME?.trim()
+  if (envHome && existsSync(envHome) && !isSystemProfilePath(envHome)) {
+    return envHome
+  }
+
+  const appRoot = process.env.JANUS_APP_ROOT?.trim()
+  const candidates = [
+    appRoot ? join(dirname(appRoot), 'install-config.json') : null,
+    join('C:\\Program Files\\Janus', 'install-config.json')
+  ].filter((p): p is string => Boolean(p))
+
+  for (const configPath of candidates) {
+    if (!existsSync(configPath)) continue
+    try {
+      const raw = readFileSync(configPath, 'utf-8').replace(/^\uFEFF/, '')
+      const parsed = JSON.parse(raw) as { userHome?: string }
+      const userHome = parsed.userHome?.trim()
+      if (userHome && existsSync(userHome) && !isSystemProfilePath(userHome)) {
+        return userHome
+      }
+    } catch {
+      // ignore invalid install-config
+    }
+  }
+
+  return null
+}
+
+/**
+ * Home directory for expanding ~/.cursor etc.
+ * Prefer JANUS_USER_HOME / install-config when the process runs as LocalSystem,
+ * so platform roots are never the empty systemprofile tree.
+ */
+export function resolveEffectiveHome(): string {
+  const installed = readInstallUserHome()
+  if (installed) return installed
+
+  const osHome = homedir()
+  if (!isSystemProfilePath(osHome)) return osHome
+
+  return osHome
+}
+
 export function expandHome(input: string): string {
+  const home = resolveEffectiveHome()
   if (input.startsWith('~/')) {
-    return join(homedir(), input.slice(2))
+    return join(home, input.slice(2))
   }
   if (input === '~') {
-    return homedir()
+    return home
   }
   return input
 }

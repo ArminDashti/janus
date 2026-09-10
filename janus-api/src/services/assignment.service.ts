@@ -116,7 +116,7 @@ export class AssignmentService {
     for (const platform of platforms) {
       const adapter = getAdapter(platform.id)
       if (!adapter) continue
-      const paths = adapter.getProjectPaths(project.path)
+      const paths = adapter.getProjectPaths(project.path, platform.projectDirName)
 
       switch (resourceType) {
         case 'skill':
@@ -321,7 +321,9 @@ export class AssignmentService {
       .flatMap((r) => r.projects)
       .find((p) => p.id === projectId)
     if (!project) throw new Error('Project not found')
-    return adapter.getProjectPaths(project.path)
+    const platform = settings.platforms.find((p) => p.id === target.platformId)
+    if (!platform) throw new Error('Platform not found')
+    return adapter.getProjectPaths(project.path, platform.projectDirName)
   }
 }
 

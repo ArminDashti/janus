@@ -1,7 +1,6 @@
 export interface ResourceMeta {
   version: string
   author: string
-  category: string
   tags: string[]
   last_updated: string
   uuid: string
@@ -79,7 +78,6 @@ export function extractResourceMeta(
 
   const uuid = asString(nested.uuid)
   const last_updated = asString(nested.last_updated)
-  const category = asString(nested.category)
   const version = asString(nested.version)
   const author = asString(nested.author)
   const tags = asStringArray(nested.tags)
@@ -87,7 +85,6 @@ export function extractResourceMeta(
   const out: Partial<ResourceMeta> = {}
   if (uuid && UUID_RE.test(uuid)) out.uuid = uuid
   if (last_updated) out.last_updated = last_updated
-  if (category) out.category = category
   if (version) out.version = version
   if (author) out.author = author
   if (tags.length > 0) out.tags = tags
@@ -117,7 +114,6 @@ export function isCompleteResourceMeta(meta: Partial<ResourceMeta>): boolean {
   if (!meta.last_updated || !LAST_UPDATED_RE.test(meta.last_updated)) return false
   if (!meta.version || !SEMVER_RE.test(meta.version.replace(/^["']|["']$/g, ''))) return false
   if (!meta.author || !meta.author.trim()) return false
-  if (meta.category === undefined || meta.category === null) return false
   // tags must be present as an array (may be empty)
   if (!Array.isArray(meta.tags)) return false
   return true
@@ -143,9 +139,9 @@ export function validateSkillStructure(frontmatter: Record<string, unknown>): {
   // tags: extractResourceMeta omits empty arrays — read nested directly
   const nested = frontmatter.metadata as Record<string, unknown>
   const tags = asStringArray(nested.tags)
-  const complete = isCompleteResourceMeta({ ...meta, tags, category: asString(nested.category) })
+  const complete = isCompleteResourceMeta({ ...meta, tags })
   if (!complete) {
-    return { ok: false, reason: 'Incomplete metadata (version, author, category, tags, last_updated, uuid)' }
+    return { ok: false, reason: 'Incomplete metadata (version, author, tags, last_updated, uuid)' }
   }
   return { ok: true, reason: '' }
 }
@@ -169,9 +165,9 @@ export function validateRuleStructure(frontmatter: Record<string, unknown>): {
   const nested = frontmatter.metadata as Record<string, unknown>
   const meta = extractResourceMeta(frontmatter)
   const tags = asStringArray(nested.tags)
-  const complete = isCompleteResourceMeta({ ...meta, tags, category: asString(nested.category) })
+  const complete = isCompleteResourceMeta({ ...meta, tags })
   if (!complete) {
-    return { ok: false, reason: 'Incomplete metadata (version, author, category, tags, last_updated, uuid)' }
+    return { ok: false, reason: 'Incomplete metadata (version, author, tags, last_updated, uuid)' }
   }
   return { ok: true, reason: '' }
 }
@@ -192,9 +188,9 @@ export function validateSubAgentStructure(frontmatter: Record<string, unknown>):
   const nested = frontmatter.metadata as Record<string, unknown>
   const meta = extractResourceMeta(frontmatter)
   const tags = asStringArray(nested.tags)
-  const complete = isCompleteResourceMeta({ ...meta, tags, category: asString(nested.category) })
+  const complete = isCompleteResourceMeta({ ...meta, tags })
   if (!complete) {
-    return { ok: false, reason: 'Incomplete metadata (version, author, category, tags, last_updated, uuid)' }
+    return { ok: false, reason: 'Incomplete metadata (version, author, tags, last_updated, uuid)' }
   }
   return { ok: true, reason: '' }
 }
@@ -214,14 +210,13 @@ export function validateHookStructure(entry: Record<string, unknown>): {
   const complete = isCompleteResourceMeta({
     ...meta,
     tags,
-    category: asString(entry.category),
     version: asString(entry.version) || meta.version,
     author: asString(entry.author) || meta.author
   })
   if (!complete) {
     return {
       ok: false,
-      reason: 'Incomplete metadata (version, author, category, tags, last_updated, uuid)'
+      reason: 'Incomplete metadata (version, author, tags, last_updated, uuid)'
     }
   }
   return { ok: true, reason: '' }
@@ -229,12 +224,11 @@ export function validateHookStructure(entry: Record<string, unknown>): {
 
 export function ensureResourceMeta(
   partial: Partial<ResourceMeta> | undefined,
-  defaults?: { category?: string; tags?: string[]; version?: string; author?: string }
+  defaults?: { tags?: string[]; version?: string; author?: string }
 ): ResourceMeta {
   return {
     version: partial?.version?.trim() || defaults?.version || '1.0.0',
     author: partial?.author?.trim() || defaults?.author || 'Armin Dashti',
-    category: partial?.category?.trim() || defaults?.category || '',
     tags: partial?.tags?.length ? partial.tags : defaults?.tags ?? [],
     last_updated: partial?.last_updated?.trim() || formatMetaTimestamp(),
     uuid: partial?.uuid && UUID_RE.test(partial.uuid) ? partial.uuid : newResourceUuid()
@@ -259,7 +253,6 @@ export function serializeMetadataBlock(meta: ResourceMeta, indent = ''): string 
     `${indent}metadata:`,
     `${indent}  version: ${yamlScalar(meta.version)}`,
     `${indent}  author: ${yamlScalar(meta.author)}`,
-    `${indent}  category: ${yamlScalar(meta.category)}`,
     `${indent}  tags: ${formatTags(meta.tags)}`,
     `${indent}  last_updated: ${yamlScalar(meta.last_updated)}`,
     `${indent}  uuid: ${meta.uuid}`
@@ -271,13 +264,11 @@ export function skillTemplate(
   name: string,
   options?: {
     description?: string
-    category?: string
     tags?: string[]
     meta?: Partial<ResourceMeta>
   }
 ): string {
   const meta = ensureResourceMeta(options?.meta, {
-    category: options?.category ?? '',
     tags: options?.tags ?? [],
     version: '1.0.0',
     author: 'Armin Dashti'
@@ -304,13 +295,11 @@ export function ruleTemplate(
   name: string,
   options?: {
     description?: string
-    category?: string
     tags?: string[]
     meta?: Partial<ResourceMeta>
   }
 ): string {
   const meta = ensureResourceMeta(options?.meta, {
-    category: options?.category ?? '',
     tags: options?.tags ?? [],
     version: '1.0.0',
     author: 'Armin Dashti'
@@ -335,13 +324,11 @@ export function subAgentTemplate(
   name: string,
   options?: {
     description?: string
-    category?: string
     tags?: string[]
     meta?: Partial<ResourceMeta>
   }
 ): string {
   const meta = ensureResourceMeta(options?.meta, {
-    category: options?.category ?? '',
     tags: options?.tags ?? [],
     version: '1.0.0',
     author: 'Armin Dashti'
@@ -366,13 +353,11 @@ export function hookEntryTemplate(
   name: string,
   options?: {
     event?: string
-    category?: string
     tags?: string[]
     meta?: Partial<ResourceMeta>
   }
 ): Record<string, unknown> {
   const meta = ensureResourceMeta(options?.meta, {
-    category: options?.category ?? '',
     tags: options?.tags ?? [],
     version: '1.0.0',
     author: 'Armin Dashti'
@@ -382,7 +367,6 @@ export function hookEntryTemplate(
     type: 'command',
     version: meta.version,
     author: meta.author,
-    category: meta.category,
     tags: meta.tags,
     last_updated: meta.last_updated,
     uuid: meta.uuid

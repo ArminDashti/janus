@@ -3,6 +3,7 @@ import { basename, join } from 'path'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { v4 as uuidv4 } from 'uuid'
 import type { AppSettings, PlatformId, ResourceType } from '../shared/types'
+import { DEFAULT_PLATFORM_PROJECT_DIRS } from '../shared/types'
 import { createDefaultSettings } from '../shared/defaults'
 import { expandHome, skillFolderNameFromKey, stableId } from '../shared/utils'
 import { getAppRoot, getInstructionsPath } from '../app-paths'
@@ -23,7 +24,6 @@ import { startFileWatcher, stopFileWatcher } from '../services/watcher.service'
 import { getAdapter } from '../platforms'
 
 type NonMcpResourceType = Exclude<ResourceType, 'mcp'>
-type CategorizableResourceType = 'skill' | 'rule' | 'hook' | 'subAgent'
 type CreatableResourceType = 'skill' | 'rule' | 'hook' | 'subAgent'
 
 const RESOURCE_TYPES = new Set<ResourceType>(['skill', 'rule', 'mcp', 'hook', 'subAgent', 'tool'])
@@ -34,12 +34,6 @@ const NON_MCP_RESOURCE_TYPES = new Set<NonMcpResourceType>([
   'subAgent',
   'tool'
 ])
-const CATEGORIZABLE_RESOURCE_TYPES = new Set<CategorizableResourceType>([
-  'skill',
-  'rule',
-  'hook',
-  'subAgent'
-])
 const CREATABLE_RESOURCE_TYPES = new Set<CreatableResourceType>(['skill', 'rule', 'hook', 'subAgent'])
 
 function isResourceType(value: string): value is ResourceType {
@@ -48,10 +42,6 @@ function isResourceType(value: string): value is ResourceType {
 
 function isNonMcpResourceType(value: string): value is NonMcpResourceType {
   return NON_MCP_RESOURCE_TYPES.has(value as NonMcpResourceType)
-}
-
-function isCategorizableResourceType(value: string): value is CategorizableResourceType {
-  return CATEGORIZABLE_RESOURCE_TYPES.has(value as CategorizableResourceType)
 }
 
 function isCreatableResourceType(value: string): value is CreatableResourceType {
@@ -290,7 +280,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     '/api/resources/:resourceType/rename',
     route(async (request) => {
       const { resourceType } = request.params as { resourceType: string }
-      if (!isCategorizableResourceType(resourceType)) {
+      if (!isCreatableResourceType(resourceType)) {
         throw new Error(`Invalid resource type: ${resourceType}`)
       }
 
@@ -383,27 +373,6 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       }
 
       await resourceService.setMandatory(resourceType, resourceName, body.mandatory)
-      return true
-    })
-  )
-
-  app.post(
-    '/api/resources/:resourceType/:resourceName/category',
-    route(async (request) => {
-      const { resourceType, resourceName } = request.params as {
-        resourceType: string
-        resourceName: string
-      }
-      if (!isCategorizableResourceType(resourceType)) {
-        throw new Error(`Invalid resource type: ${resourceType}`)
-      }
-
-      const body = request.body as { category?: string }
-      if (body.category === undefined) {
-        throw new Error('category is required')
-      }
-
-      await resourceService.setResourceCategory(resourceType, resourceName, body.category)
       return true
     })
   )
@@ -501,21 +470,40 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.post(
     '/api/platforms',
     route(async (request) => {
-      const body = request.body as { id?: PlatformId; rootPath?: string }
+      const body = request.body as {
+        id?: PlatformId
+        rootPath?: string
+        projectDirName?: string
+        enabled?: boolean
+      }
       if (!body.id || !body.rootPath) {
         throw new Error('id and rootPath are required')
       }
+
+      const projectDirName =
+        typeof body.projectDirName === 'string' && body.projectDirName.trim()
+          ? body.projectDirName.trim()
+          : DEFAULT_PLATFORM_PROJECT_DIRS[body.id]
 
       settingsStore.update((s) => {
         const existing = s.platforms.find((p) => p.id === body.id)
         if (existing) {
           existing.rootPath = expandHome(body.rootPath!)
-          existing.enabled = true
+          existing.projectDirName = projectDirName
+          existing.enabled = body.enabled ?? true
           return { ...s }
         }
         return {
           ...s,
-          platforms: [...s.platforms, { id: body.id!, enabled: true, rootPath: expandHome(body.rootPath!) }]
+          platforms: [
+            ...s.platforms,
+            {
+              id: body.id!,
+              enabled: body.enabled ?? true,
+              rootPath: expandHome(body.rootPath!),
+              projectDirName
+            }
+          ]
         }
       })
 

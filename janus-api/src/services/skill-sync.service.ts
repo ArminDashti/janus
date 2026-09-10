@@ -75,7 +75,7 @@ export function resolveSkillFromPath(
         if (!platform.enabled) continue
         const adapter = getAdapter(platform.id)
         if (!adapter) continue
-        const paths = adapter.getProjectPaths(project.path)
+        const paths = adapter.getProjectPaths(project.path, platform.projectDirName)
         for (const skillsDir of paths.skillsDirs) {
           const skillsDirResolved = resolve(skillsDir)
           const skillsDirNorm = normalizePath(skillsDirResolved)
@@ -136,7 +136,7 @@ async function collectCloneSkillRoots(
         if (!platform.enabled) continue
         const adapter = getAdapter(platform.id)
         if (!adapter) continue
-        const paths = adapter.getProjectPaths(project.path)
+        const paths = adapter.getProjectPaths(project.path, platform.projectDirName)
         for (const skillsDir of paths.skillsDirs) {
           const dest = join(skillsDir, ...skillName.split(/[/\\]/).filter(Boolean))
           if (!existsSync(join(dest, 'SKILL.md'))) continue

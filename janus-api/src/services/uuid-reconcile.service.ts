@@ -56,7 +56,6 @@ export function markdownIdentityDigest(content: string): string {
       String(frontmatter.model ?? ''),
       String(meta.version ?? nested.version ?? ''),
       String(meta.author ?? nested.author ?? ''),
-      String(meta.category ?? nested.category ?? ''),
       tags,
       body.trim()
     ].join('\n')
@@ -165,7 +164,6 @@ async function reconcileSkills(skills: SkillResource[]): Promise<void> {
       skill.uuid = sharedUuid
       skill.id = sharedUuid
       skill.contentHash = skillContentHash(content)
-      skill.category = meta.category ?? skill.category
       skill.lastUpdatedAt = metaTimestampToIso(meta.last_updated)
       skill.structureOk = structure.ok
       skill.structureWarning = structure.ok ? undefined : structure.reason
@@ -198,7 +196,6 @@ async function reconcileRules(rules: RuleResource[]): Promise<void> {
       const meta = extractResourceMeta(frontmatter)
       rule.uuid = sharedUuid
       rule.id = sharedUuid
-      rule.category = meta.category ?? rule.category
       rule.lastUpdatedAt = metaTimestampToIso(meta.last_updated)
       rule.structureOk = structure.ok
       rule.structureWarning = structure.ok ? undefined : structure.reason
@@ -233,7 +230,6 @@ async function reconcileSubAgents(agents: SubAgentResource[]): Promise<void> {
       agent.id = sharedUuid
       agent.frontmatter = frontmatter
       agent.description = String(frontmatter.description ?? agent.description)
-      agent.category = meta.category ?? agent.category
       agent.lastUpdatedAt = metaTimestampToIso(meta.last_updated)
       agent.structureOk = structure.ok
       agent.structureWarning = structure.ok ? undefined : structure.reason
@@ -293,7 +289,6 @@ async function reconcileHooks(hooks: HookResource[]): Promise<void> {
         const existing = {
           version: String(entry.version ?? ''),
           author: String(entry.author ?? ''),
-          category: String(entry.category ?? ''),
           tags: Array.isArray(entry.tags) ? (entry.tags as string[]) : [],
           last_updated: String(entry.last_updated ?? ''),
           uuid: sharedUuid
@@ -302,7 +297,7 @@ async function reconcileHooks(hooks: HookResource[]): Promise<void> {
         entry.uuid = meta.uuid
         entry.version = meta.version
         entry.author = meta.author
-        entry.category = meta.category
+        delete entry.category
         entry.tags = meta.tags
         entry.last_updated = meta.last_updated || formatMetaTimestamp()
         cache.touched = true
@@ -311,7 +306,6 @@ async function reconcileHooks(hooks: HookResource[]): Promise<void> {
         hook.uuid = sharedUuid
         hook.id = sharedUuid
         hook.definition = entry as HookResource['definition']
-        hook.category = meta.category
         hook.lastUpdatedAt = metaTimestampToIso(meta.last_updated)
         hook.structureOk = structure.ok
         hook.structureWarning = structure.ok ? undefined : structure.reason

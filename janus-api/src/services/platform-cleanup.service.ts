@@ -1,9 +1,10 @@
 import { existsSync } from 'fs'
-import { join } from 'path'
 import type { PlatformId } from '../shared/types'
+import { DEFAULT_PLATFORM_PROJECT_DIRS } from '../shared/types'
 import { importedProjectsStore } from './imported-projects-store'
 import { fileService } from './file.service'
 import { getProjectDotDir } from '../platforms/types'
+import { settingsStore } from './settings-store'
 
 export interface PlatformCleanupResult {
   projectsAffected: number
@@ -11,7 +12,10 @@ export interface PlatformCleanupResult {
   errors: string[]
 }
 
-const COPILOT_MANAGED_DIRS = ['skills', 'rules']
+function resolveProjectDirName(platformId: PlatformId): string {
+  const fromSettings = settingsStore.get().platforms.find((p) => p.id === platformId)
+  return fromSettings?.projectDirName?.trim() || DEFAULT_PLATFORM_PROJECT_DIRS[platformId]
+}
 
 export class PlatformCleanupService {
   async purgeFromProjects(platformIds: PlatformId[]): Promise<PlatformCleanupResult> {
@@ -57,18 +61,7 @@ export class PlatformCleanupService {
     projectPath: string
   ): Promise<string[]> {
     const removed: string[] = []
-    const dotDir = getProjectDotDir(platformId, projectPath)
-
-    if (platformId === 'copilot') {
-      for (const sub of COPILOT_MANAGED_DIRS) {
-        const target = join(dotDir, sub)
-        if (existsSync(target)) {
-          await fileService.removePath(target)
-          removed.push(target)
-        }
-      }
-      return removed
-    }
+    const dotDir = getProjectDotDir(projectPath, resolveProjectDirName(platformId))
 
     if (existsSync(dotDir)) {
       await fileService.removePath(dotDir)

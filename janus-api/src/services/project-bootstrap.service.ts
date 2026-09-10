@@ -1,7 +1,7 @@
 import { existsSync } from 'fs'
 import { basename, join } from 'path'
 import type { PlatformId } from '../shared/types'
-import { PLATFORM_IDS } from '../shared/types'
+import { DEFAULT_PLATFORM_PROJECT_DIRS, PLATFORM_IDS } from '../shared/types'
 import { getProjectDotDir } from '../platforms/types'
 import { fileService } from './file.service'
 import { settingsStore } from './settings-store'
@@ -21,6 +21,11 @@ function formatLocalIsoWithOffset(date = new Date()): string {
   const offsetHours = pad(Math.floor(abs / 60))
   const offsetMins = pad(abs % 60)
   return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}${sign}${offsetHours}:${offsetMins}`
+}
+
+function resolveProjectDirName(platformId: PlatformId): string {
+  const fromSettings = settingsStore.get().platforms.find((p) => p.id === platformId)
+  return fromSettings?.projectDirName?.trim() || DEFAULT_PLATFORM_PROJECT_DIRS[platformId]
 }
 
 export class ProjectBootstrapService {
@@ -61,7 +66,6 @@ export class ProjectBootstrapService {
       name: basename(projectPath),
       version: '1.0.0',
       author: 'Armin Dashti',
-      category: '',
       'last-modified': formatLocalIsoWithOffset(),
       licence: 'MIT'
     }
@@ -69,7 +73,7 @@ export class ProjectBootstrapService {
   }
 
   async ensurePlatformFolders(projectPath: string, platformId: PlatformId): Promise<void> {
-    const dotDir = getProjectDotDir(platformId, projectPath)
+    const dotDir = getProjectDotDir(projectPath, resolveProjectDirName(platformId))
     await fileService.writeText(join(dotDir, 'skills', '.keep'), '')
     await fileService.writeText(join(dotDir, 'rules', '.keep'), '')
     await fileService.writeText(join(dotDir, 'tools', '.keep'), '')

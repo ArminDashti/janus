@@ -17,12 +17,12 @@ export interface PlatformAdapter {
   label: string
   supportedResources: ResourceType[]
   getPlatformPaths(rootPath: string): PlatformPaths
-  getProjectPaths(projectPath: string): PlatformPaths
+  getProjectPaths(projectPath: string, projectDirName: string): PlatformPaths
 }
 
-export function getProjectDotDir(platformId: PlatformId, projectPath: string): string {
-  if (platformId === 'copilot') return joinPath(projectPath, '.github')
-  return joinPath(projectPath, `.${platformId}`)
+export function getProjectDotDir(projectPath: string, projectDirName: string): string {
+  const name = projectDirName.trim() || '.'
+  return joinPath(projectPath, name)
 }
 
 function joinPath(...parts: string[]): string {

@@ -18,14 +18,12 @@ import { ruleBaseName, ruleDisplayName, ruleMatchesDisplayName } from '../shared
 import { isValidResourceName } from '../shared/resource-names'
 import {
   parseFrontmatter,
-  defaultCategoryFromName,
   parseSkillGroupKey,
   skillContentHash,
   skillFolderNameFromKey,
   skillGroupKey,
   extractResourceMeta,
   ensureResourceMeta,
-  formatMetaTimestamp,
   metaTimestampToIso,
   upsertMarkdownMeta,
   skillTemplate,
@@ -104,11 +102,6 @@ function filterItems(items: ScannedResource[], resourceType: ResourceType): Scan
 function itemUuid(item: ScannedResource): string {
   if ('uuid' in item && typeof item.uuid === 'string' && item.uuid) return item.uuid
   return item.id
-}
-
-function itemCategory(item: ScannedResource): string {
-  if ('category' in item && typeof item.category === 'string') return item.category
-  return ''
 }
 
 function itemLastUpdated(item: ScannedResource): string | null {
@@ -226,7 +219,11 @@ function* iterateProjectPlatformPaths(settings: AppSettings): Generator<{
       if (!platform.enabled) continue
       const adapter = getAdapter(platform.id)
       if (!adapter) continue
-      yield { project, paths: adapter.getProjectPaths(project.path), platformId: platform.id }
+      yield {
+        project,
+        paths: adapter.getProjectPaths(project.path, platform.projectDirName),
+        platformId: platform.id
+      }
     }
   }
 }
@@ -349,11 +346,6 @@ export class ResourceService {
           : Promise.resolve('')
       ])
 
-      let category = itemCategory(canonical)
-      if (resourceType === 'skill' && !category.trim()) {
-        category = defaultCategoryFromName(displayName)
-      }
-
       const lastUpdatedAt =
         instances
           .map((i) => itemLastUpdated(i))
@@ -391,7 +383,6 @@ export class ResourceService {
         mandatory,
         canonicalId: canonical.id,
         description,
-        category,
         event:
           resourceType === 'hook'
             ? (canonical as HookResource).event
@@ -534,72 +525,6 @@ export class ResourceService {
       await this.setMandatory(resourceType, key, true)
     }
     return summaries.length
-  }
-
-  async setResourceCategory(
-    resourceType: 'skill' | 'rule' | 'hook' | 'subAgent',
-    resourceName: string,
-    category: string
-  ): Promise<void> {
-    const settings = settingsStore.get()
-    const scan = await scannerService.scanAll(settings)
-    const instances = filterItems(getItems(scan, resourceType), resourceType).filter((i) =>
-      matchesResourceName(i, resourceType, resourceName)
-    )
-    const nextCategory = category.trim()
-    const stamp = formatMetaTimestamp()
-
-    for (const item of instances) {
-      if (resourceType === 'hook') {
-        const hook = item as HookResource
-        if (!existsSync(hook.configPath)) continue
-        const raw = await fileService.readText(hook.configPath)
-        const parsed = JSON.parse(raw) as {
-          hooks?: Record<string, Array<Record<string, unknown>>>
-        }
-        const entries = parsed.hooks?.[hook.event] ?? []
-        const command = hook.definition.command ?? ''
-        let changed = false
-        for (const entry of entries) {
-          if (String(entry.command ?? '') !== command) continue
-          if (entry.uuid && entry.uuid !== hook.uuid) continue
-          entry.category = nextCategory
-          entry.last_updated = stamp
-          if (!entry.uuid) entry.uuid = hook.uuid
-          changed = true
-        }
-        if (changed) {
-          await fileService.writeText(hook.configPath, JSON.stringify(parsed, null, 2))
-        }
-        continue
-      }
-
-      const path =
-        resourceType === 'skill'
-          ? (item as SkillResource).skillMdPath
-          : resourceType === 'rule'
-            ? (item as RuleResource).filePath
-            : (item as SubAgentResource).filePath
-      if (!existsSync(path)) continue
-      const text = await fileService.readText(path)
-      const { frontmatter } = parseFrontmatter(text)
-      const existing = extractResourceMeta(frontmatter)
-      const meta = ensureResourceMeta({
-        ...existing,
-        uuid: existing.uuid || itemUuid(item),
-        category: nextCategory,
-        last_updated: stamp
-      })
-      const top: Record<string, unknown> = {
-        name: frontmatter.name,
-        description: frontmatter.description ?? '',
-        'disable-model-invocation': frontmatter['disable-model-invocation'],
-        globs: frontmatter.globs,
-        alwaysApply: frontmatter.alwaysApply,
-        model: frontmatter.model
-      }
-      await fileService.writeText(path, upsertMarkdownMeta(text, meta, top))
-    }
   }
 
   async deleteResource(
@@ -809,7 +734,7 @@ export class ResourceService {
     for (const platform of platforms) {
       const adapter = getAdapter(platform.id)
       if (!adapter) continue
-      const paths = adapter.getProjectPaths(project.path)
+      const paths = adapter.getProjectPaths(project.path, platform.projectDirName)
 
       switch (resourceType) {
         case 'skill':
@@ -1151,7 +1076,6 @@ export class ResourceService {
       definition: matched.entry as HookResource['definition'],
       configPath,
       uuid: String(matched.entry.uuid ?? ''),
-      category: String(matched.entry.category ?? ''),
       lastUpdatedAt: metaTimestampToIso(String(matched.entry.last_updated ?? '')),
       structureOk: true,
       scriptPath: matched.command

@@ -136,7 +136,7 @@ export class ScannerService {
           const adapter = getAdapter(platform.id)
           if (!adapter) continue
 
-          const paths = adapter.getProjectPaths(project.path)
+          const paths = adapter.getProjectPaths(project.path, platform.projectDirName)
           const source: ResourceSource = {
             type: 'project',
             id: project.id,
@@ -271,7 +271,6 @@ export class ScannerService {
             skillMdPath: skillMd,
             contentHash: skillContentHash(skillMdText),
             uuid: meta.uuid ?? '',
-            category: meta.category ?? '',
             lastUpdatedAt: metaTimestampToIso(meta.last_updated),
             structureOk: structure.ok,
             structureWarning: structure.ok ? undefined : structure.reason,
@@ -297,7 +296,6 @@ export class ScannerService {
           name: basename(file),
           filePath: file,
           uuid: meta.uuid ?? '',
-          category: meta.category ?? '',
           lastUpdatedAt: metaTimestampToIso(meta.last_updated),
           structureOk: structure.ok,
           structureWarning: structure.ok ? undefined : structure.reason,
@@ -357,7 +355,6 @@ export class ScannerService {
               configPath: paths.hooksConfigPath,
               definition: entry as HookResource['definition'],
               uuid: meta.uuid ?? '',
-              category: meta.category ?? '',
               lastUpdatedAt: metaTimestampToIso(meta.last_updated),
               structureOk: structure.ok,
               structureWarning: structure.ok ? undefined : structure.reason,
@@ -395,7 +392,6 @@ export class ScannerService {
           filePath: file,
           frontmatter,
           uuid: meta.uuid ?? '',
-          category: meta.category ?? '',
           lastUpdatedAt: metaTimestampToIso(meta.last_updated),
           structureOk: structure.ok,
           structureWarning: structure.ok ? undefined : structure.reason,

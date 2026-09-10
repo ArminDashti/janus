@@ -167,17 +167,6 @@ export function parseFrontmatter(content: string): {
   return { frontmatter, body: match[2] }
 }
 
-/** Nested skills use first path segment; flat skills use first segment before `-`. */
-export function defaultCategoryFromName(name: string): string {
-  const normalized = name.replace(/\\/g, '/')
-  if (normalized.includes('/')) {
-    return normalized.split('/')[0]?.trim() ?? ''
-  }
-  const idx = name.indexOf('-')
-  if (idx <= 0) return ''
-  return name.slice(0, idx).trim()
-}
-
 export function formatDateWithRelative(iso: string | null): string {
   if (!iso) return '—'
   const date = new Date(iso)

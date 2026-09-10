@@ -5,7 +5,6 @@ import { join } from 'path'
 export {
   isMarkdownFile,
   parseFrontmatter,
-  defaultCategoryFromName,
   skillGroupKey,
   parseSkillGroupKey,
   skillFolderNameFromKey

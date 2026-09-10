@@ -53,11 +53,6 @@ export interface AgentManagerApi {
     resourceName: string,
     mandatory: boolean
   ) => Promise<boolean>
-  setResourceCategory: (
-    resourceType: 'skill' | 'rule' | 'hook' | 'subAgent',
-    resourceName: string,
-    category: string
-  ) => Promise<boolean>
   renameResource: (
     resourceType: 'skill' | 'rule' | 'hook' | 'subAgent',
     oldName: string,
@@ -75,7 +70,7 @@ export interface AgentManagerApi {
   ) => Promise<SkillResource | RuleResource | HookResource | SubAgentResource | ToolResource | null>
   deleteMcp: (name: string, configPath: string) => Promise<boolean>
   addMcp: (name: string, params: Record<string, unknown>) => Promise<string>
-  addPlatform: (id: PlatformId, rootPath: string) => Promise<AppSettings>
+  addPlatform: (id: PlatformId, rootPath: string, projectDirName?: string) => Promise<AppSettings>
   addProjectRoot: (scanPath: string) => Promise<{ id: string; projects: unknown[] }>
   importProjects: (paths: string[]) => Promise<{ imported: number; projects: unknown[] }>
   removeProject: (projectId: string) => Promise<boolean>

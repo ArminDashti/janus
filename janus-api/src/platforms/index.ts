@@ -23,8 +23,8 @@ function makeAdapter(
       }
       return paths
     },
-    getProjectPaths(projectPath: string) {
-      const dotDir = getProjectDotDir(id, projectPath)
+    getProjectPaths(projectPath: string, projectDirName: string) {
+      const dotDir = getProjectDotDir(projectPath, projectDirName)
       return createBasePaths(dotDir, hooksAndAgents)
     }
   }
@@ -32,18 +32,16 @@ function makeAdapter(
 
 export const cursorAdapter = makeAdapter('cursor', 'Cursor', true, 'skills-cursor')
 export const antigravityAdapter = makeAdapter('antigravity', 'Antigravity', false)
-export const codexAdapter = makeAdapter('codex', 'Codex', false)
-export const copilotAdapter = makeAdapter('copilot', 'Copilot', false)
 export const devinAdapter = makeAdapter('devin', 'Devin', false)
-export const grokAdapter = makeAdapter('grok', 'Grok', false)
+export const opencodeAdapter = makeAdapter('opencode', 'OpenCode', false)
+export const kiloAdapter = makeAdapter('kilo', 'Kilo', false)
 
 export const allAdapters = [
   antigravityAdapter,
-  codexAdapter,
-  copilotAdapter,
   cursorAdapter,
   devinAdapter,
-  grokAdapter
+  kiloAdapter,
+  opencodeAdapter
 ]
 
 export function getAdapter(id: string): PlatformAdapter | undefined {

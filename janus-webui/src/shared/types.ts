@@ -1,10 +1,9 @@
 export type PlatformId =
   | 'cursor'
   | 'antigravity'
-  | 'codex'
-  | 'copilot'
   | 'devin'
-  | 'grok'
+  | 'opencode'
+  | 'kilo'
 
 export type ResourceType =
   | 'skill'
@@ -23,7 +22,10 @@ export interface ResourceSource {
 export interface PlatformConfig {
   id: PlatformId
   enabled: boolean
+  /** Global platform root, e.g. C:\\Users\\armin\\.cursor */
   rootPath: string
+  /** In-project folder name, e.g. .cursor */
+  projectDirName: string
 }
 
 export interface ProjectInfo {
@@ -42,7 +44,6 @@ export interface ProjectRootConfig {
 export interface UiFilterState {
   search: string
   selectedProjectId: string
-  selectedCategories: string[]
   sortKey: string
   sortDir: 'asc' | 'desc'
 }
@@ -93,7 +94,6 @@ export interface SkillResource {
   contentHash: string
   /** Stable identity from frontmatter metadata.uuid */
   uuid: string
-  category: string
   lastUpdatedAt: string | null
   /** False when frontmatter/entry does not match the required metadata structure */
   structureOk: boolean
@@ -109,7 +109,6 @@ export interface RuleResource {
   filePath: string
   /** Stable identity from frontmatter metadata.uuid */
   uuid: string
-  category: string
   lastUpdatedAt: string | null
   structureOk: boolean
   structureWarning?: string
@@ -142,7 +141,6 @@ export interface HookDefinition {
   loop_limit?: number
   version?: string
   author?: string
-  category?: string
   tags?: string[]
   last_updated?: string
   uuid?: string
@@ -156,7 +154,6 @@ export interface HookResource {
   definition: HookDefinition
   /** Stable identity from hooks.json entry uuid */
   uuid: string
-  category: string
   lastUpdatedAt: string | null
   structureOk: boolean
   structureWarning?: string
@@ -174,7 +171,6 @@ export interface SubAgentResource {
   frontmatter: Record<string, unknown>
   /** Stable identity from frontmatter metadata.uuid */
   uuid: string
-  category: string
   lastUpdatedAt: string | null
   structureOk: boolean
   structureWarning?: string
@@ -231,7 +227,6 @@ export interface ResourceGroupSummary {
   mandatory: boolean
   canonicalId: string
   description: string
-  category: string
   event?: string
   /** False when the resource does not follow the required metadata structure */
   structureOk: boolean
@@ -240,37 +235,42 @@ export interface ResourceGroupSummary {
 
 export const PLATFORM_IDS: PlatformId[] = [
   'antigravity',
-  'codex',
-  'copilot',
   'cursor',
   'devin',
-  'grok'
+  'kilo',
+  'opencode'
 ]
 
 export const PLATFORM_LABELS: Record<PlatformId, string> = {
   antigravity: 'Antigravity',
-  codex: 'Codex',
-  copilot: 'Copilot',
   cursor: 'Cursor',
   devin: 'Devin',
-  grok: 'Grok'
+  kilo: 'Kilo',
+  opencode: 'OpenCode'
 }
 
 export const DEFAULT_PLATFORM_ROOTS: Record<PlatformId, string> = {
   antigravity: '~/.antigravity',
-  codex: '~/.codex',
-  copilot: '~/.copilot',
   cursor: '~/.cursor',
   devin: '~/.devin',
-  grok: '~/.grok'
+  kilo: '~/.config/kilo',
+  opencode: '~/.config/opencode'
+}
+
+export const DEFAULT_PLATFORM_PROJECT_DIRS: Record<PlatformId, string> = {
+  antigravity: '.antigravity',
+  cursor: '.cursor',
+  devin: '.devin',
+  kilo: '.kilo',
+  opencode: '.opencode'
 }
 
 export const CURSOR_ONLY_RESOURCES: ResourceType[] = ['hook', 'subAgent']
 
 export const PROJECT_ONLY_RESOURCES: ResourceType[] = ['rule']
 
-/** Sentinel target id: create/filter against Cursor ~/.cursor (Global). */
+/** Sentinel target id: create/assign against Cursor ~/.cursor (Global). */
 export const GLOBAL_TARGET_KEY = '__global__'
 
-/** Sentinel filter id: Rules "All projects" (no project filter). */
+/** Sentinel filter id: show all projects (no project filter). */
 export const ALL_PROJECTS_FILTER_KEY = '__all_projects__'
