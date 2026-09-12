@@ -198,6 +198,54 @@ function Test-JanusServiceExists {
     return $exists
 }
 
+function Stop-JanusInstallProcesses {
+    # WinSW stop can leave node/tsx grandchildren (or WinSW itself) holding C:\Program Files\Janus.
+    $root = $script:JanusInstallRoot
+    $escaped = [regex]::Escape($root)
+    $wrapperNames = @("$($script:JanusApiService).exe", "$($script:JanusWebuiService).exe", 'WinSW.exe')
+    $procs = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+            $cmd = $_.CommandLine
+            $exe = $_.ExecutablePath
+            ($cmd -and ($cmd -match $escaped)) -or
+            ($exe -and ($exe -match $escaped)) -or
+            ($wrapperNames -contains $_.Name)
+        })
+    foreach ($p in $procs) {
+        Write-Host "Stopping leftover process $($p.ProcessId) ($($p.Name)) still using install root..."
+        try {
+            Stop-Process -Id $p.ProcessId -Force -ErrorAction Stop
+        }
+        catch {
+            Write-Warning "Could not stop PID $($p.ProcessId): $($_.Exception.Message)"
+        }
+    }
+    if ($procs.Count -gt 0) {
+        Start-Sleep -Seconds 2
+    }
+}
+
+function Copy-JanusFileWithRetry {
+    param(
+        [string]$Source,
+        [string]$Destination,
+        [int]$Attempts = 8,
+        [int]$DelaySeconds = 2
+    )
+
+    for ($i = 1; $i -le $Attempts; $i++) {
+        Stop-JanusInstallProcesses
+        try {
+            Copy-Item -LiteralPath $Source -Destination $Destination -Force -ErrorAction Stop
+            return
+        }
+        catch {
+            if ($i -eq $Attempts) { throw }
+            Write-Warning "Copy '$Destination' attempt $i/$Attempts failed: $($_.Exception.Message)"
+            Start-Sleep -Seconds $DelaySeconds
+        }
+    }
+}
+
 function Stop-JanusServiceSafe {
     param([string]$Name)
     $winsw = Get-JanusWinSwExePath -Name $Name
@@ -206,6 +254,7 @@ function Stop-JanusServiceSafe {
         & $winsw stop 2>&1 | Out-Null
         Clear-JanusNativeExitCode
         Start-Sleep -Seconds 2
+        Stop-JanusInstallProcesses
         return
     }
     if (-not (Test-JanusServiceExists -Name $Name)) { return }
@@ -213,6 +262,7 @@ function Stop-JanusServiceSafe {
     & sc.exe stop $Name | Out-Null
     Clear-JanusNativeExitCode
     Start-Sleep -Seconds 2
+    Stop-JanusInstallProcesses
 }
 
 function Remove-JanusServiceSafe {
@@ -223,7 +273,8 @@ function Remove-JanusServiceSafe {
         & $winsw stop 2>&1 | Out-Null
         & $winsw uninstall 2>&1 | Out-Null
         Clear-JanusNativeExitCode
-        Start-Sleep -Seconds 1
+        Start-Sleep -Seconds 2
+        Stop-JanusInstallProcesses
     }
     elseif (Test-JanusServiceExists -Name $Name) {
         Stop-JanusServiceSafe -Name $Name
@@ -275,7 +326,23 @@ function Register-JanusService {
     $winswExe = Get-JanusWinSwExePath -Name $Name
     $winswXml = Get-JanusWinSwXmlPath -Name $Name
 
-    Copy-Item -LiteralPath $template -Destination $winswExe -Force
+    # Must stop/uninstall before overwriting the WinSW wrapper — a running janus.exe locks the file.
+    if (Test-JanusServiceExists -Name $Name) {
+        Stop-JanusServiceSafe -Name $Name
+        if (Test-Path -LiteralPath $winswExe) {
+            $out = & $winswExe uninstall 2>&1 | Out-String
+            Clear-JanusNativeExitCode
+            Start-Sleep -Seconds 1
+        }
+        else {
+            & sc.exe delete $Name | Out-Null
+            Clear-JanusNativeExitCode
+            Start-Sleep -Seconds 1
+        }
+        Stop-JanusInstallProcesses
+    }
+
+    Copy-JanusFileWithRetry -Source $template -Destination $winswExe
 
     $xml = @"
 <service>
@@ -294,13 +361,6 @@ function Register-JanusService {
 </service>
 "@
     Write-JanusUtf8NoBom -Path $winswXml -Content $xml
-
-    if (Test-JanusServiceExists -Name $Name) {
-        Stop-JanusServiceSafe -Name $Name
-        $out = & $winswExe uninstall 2>&1 | Out-String
-        Clear-JanusNativeExitCode
-        Start-Sleep -Seconds 1
-    }
 
     $installOut = & $winswExe install 2>&1 | Out-String
     if ($LASTEXITCODE -ne 0) {
@@ -469,6 +529,33 @@ function Invoke-JanusNpm {
     }
 }
 
+function Remove-JanusPathWithRetry {
+    param(
+        [string]$Path,
+        [int]$Attempts = 8,
+        [int]$DelaySeconds = 2
+    )
+
+    if (-not (Test-Path -LiteralPath $Path)) { return }
+
+    for ($i = 1; $i -le $Attempts; $i++) {
+        Stop-JanusInstallProcesses
+        try {
+            Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction Stop
+            if (-not (Test-Path -LiteralPath $Path)) { return }
+        }
+        catch {
+            if ($i -eq $Attempts) { throw }
+            Write-Warning "Remove '$Path' attempt $i/$Attempts failed: $($_.Exception.Message)"
+            Start-Sleep -Seconds $DelaySeconds
+        }
+    }
+
+    if (Test-Path -LiteralPath $Path) {
+        throw "Failed to remove '$Path' after $Attempts attempts (path still locked)."
+    }
+}
+
 function Remove-JanusAppCompletely {
     Write-Host 'Removing Janus services...'
     Remove-JanusServiceSafe -Name $script:JanusWebuiService
@@ -479,14 +566,16 @@ function Remove-JanusAppCompletely {
         Remove-JanusServiceSafe -Name $script:JanusApiService
     }
 
+    Stop-JanusInstallProcesses
+
     if (Test-Path -LiteralPath $script:JanusInstallRoot) {
         Write-Host "Removing install directory: $script:JanusInstallRoot"
-        Remove-Item -LiteralPath $script:JanusInstallRoot -Recurse -Force
+        Remove-JanusPathWithRetry -Path $script:JanusInstallRoot
     }
 
     if (Test-Path -LiteralPath $script:JanusDataRoot) {
         Write-Host "Removing data directory: $script:JanusDataRoot"
-        Remove-Item -LiteralPath $script:JanusDataRoot -Recurse -Force
+        Remove-JanusPathWithRetry -Path $script:JanusDataRoot
     }
 
     Clear-JanusNativeExitCode

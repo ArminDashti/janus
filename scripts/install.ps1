@@ -114,6 +114,10 @@ Write-JanusLaunchers -NodePath $nodePath
 $apiMjs = Join-Path $script:JanusBinDir 'start-api.mjs'
 $webuiMjs = Join-Path $script:JanusBinDir 'start-webui.mjs'
 
+# Re-stop after long npm/build — SCM recovery or leftover WinSW can reclaim the .exe lock.
+Stop-JanusServiceSafe -Name $script:JanusWebuiService
+Stop-JanusServiceSafe -Name $script:JanusApiService
+
 Register-JanusService -Name $script:JanusApiService -DisplayName 'Janus API' `
     -Executable $nodePath -Arguments "`"$apiMjs`"" -WorkingDirectory $script:JanusApiDir `
     -Description 'Janus local HTTP API for janus-webui'
