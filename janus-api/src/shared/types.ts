@@ -44,6 +44,7 @@ export interface ProjectRootConfig {
 export interface UiFilterState {
   search: string
   selectedProjectId: string
+  selectedCategories: string[]
   sortKey: string
   sortDir: 'asc' | 'desc'
 }

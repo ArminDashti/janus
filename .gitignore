@@ -1,4 +1,6 @@
 *.exe
 
-# AUTO-LARGE-FILES (>5MB) — managed by commit-push-to-github
+# AUTO-LARGE-FILES (>5MB) â€” managed by commit-push-to-github
 # === auto: large files (>5MB) ===
+
+# === commit-push-to-github large files (auto) ===
