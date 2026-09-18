@@ -21,10 +21,6 @@ export function createDefaultSettings(): AppSettings {
       apiKey: '',
       model: 'openai/gpt-4o-mini'
     },
-    cursorApi: {
-      apiKey: '',
-      model: 'composer-2.5'
-    },
     assignments: {
       skills: {},
       rules: {},

@@ -438,7 +438,10 @@ function Set-JanusCorsOrigins {
     }
 
     $content = Get-Content -LiteralPath $ServerTsPath -Raw
-    $replacement = "origin: ['http://127.0.0.1:$WebuiPort', 'http://localhost:$WebuiPort', 'http://127.0.0.1:8006', 'http://localhost:8006']"
+    if ($content -match 'janus\.local') {
+        return
+    }
+    $replacement = "origin: ['http://janus.local', 'http://janus.local:$WebuiPort', 'http://janus-api.local', 'http://127.0.0.1:$WebuiPort', 'http://localhost:$WebuiPort', 'http://127.0.0.1:8006', 'http://localhost:8006']"
     $updated = [regex]::Replace($content, 'origin:\s*\[[^\]]*\]', $replacement)
     if ($updated -eq $content) {
         Write-Warning 'CORS origin block was not patched (pattern not found). WebUI may be blocked by CORS.'

@@ -1,7 +1,28 @@
 import type { AgentManagerApi } from './types'
 import type { AppSettings, PlatformId } from '@shared/types'
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8005'
+function getApiBase(): string {
+  if (typeof window !== 'undefined') {
+    const { hostname, protocol, port } = window.location
+    if (hostname === 'janus.local') {
+      if (!port || port === '80') {
+        return `${protocol}//janus-api.local`
+      }
+      if (port === '8006') {
+        return `${protocol}//janus-api.local:8005`
+      }
+      if (port === '7071') {
+        return `${protocol}//janus-api.local:7070`
+      }
+      return `${protocol}//janus-api.local:${port}`
+    }
+  }
+  return import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8005'
+}
+
+export function getApiBaseUrl(): string {
+  return getApiBase()
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers)
@@ -9,7 +30,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     headers.set('Content-Type', 'application/json')
   }
 
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await fetch(`${getApiBase()}${path}`, {
     ...init,
     headers
   })
@@ -209,21 +230,15 @@ export const agentManagerClient: AgentManagerApi = {
       body: JSON.stringify({ name })
     }),
 
-  openRouterRefactor: (requestBody) =>
-    request('/api/refactor', {
+  apiRefactor: (params) =>
+    request<{ content: string }>('/api/refactor', {
       method: 'POST',
-      body: JSON.stringify(requestBody)
-    }),
-
-  apiRefactor: (requestBody) =>
-    request('/api/refactor', {
-      method: 'POST',
-      body: JSON.stringify(requestBody)
+      body: JSON.stringify(params)
     })
 }
 
 export function connectScanEvents(): EventSource {
-  const source = new EventSource(`${API_BASE}/api/events`)
+  const source = new EventSource(`${getApiBase()}/api/events`)
   source.onmessage = () => {
     window.dispatchEvent(new Event('scan-changed'))
   }

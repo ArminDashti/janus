@@ -31,8 +31,9 @@ function migrateSettings(settings: AppSettings): AppSettings {
     repoBank?: unknown
     resourceCategories?: unknown
     hub?: unknown
+
   }
-  const { github: _g, sync: _s, repoBank: _r, resourceCategories: _c, hub: _h, ...rest } = legacy
+  const { github: _g, sync: _s, repoBank: _r, resourceCategories: _c, hub: _h, cursorApi: _ca, ...rest } = legacy
   const merged = { ...defaults, ...rest }
 
   merged.mandatoryForAllProjects = {
@@ -83,16 +84,7 @@ function migrateSettings(settings: AppSettings): AppSettings {
     ...(settings.openRouter ?? {})
   }
 
-  merged.cursorApi = {
-    ...defaults.cursorApi,
-    ...(settings.cursorApi ?? {})
-  }
-
-  const provider = settings.activeApiProvider
-  merged.activeApiProvider =
-    provider === 'cursorApi' || provider === 'openRouter'
-      ? provider
-      : defaults.activeApiProvider
+  merged.activeApiProvider = 'openRouter'
 
   return merged
 }

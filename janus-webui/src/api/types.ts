@@ -18,16 +18,6 @@ export interface AgentManagerApi {
   getSettings: () => Promise<AppSettings>
   saveSettings: (settings: AppSettings) => Promise<AppSettings>
   resetSettings: () => Promise<AppSettings>
-  openRouterRefactor: (request: {
-    resourceType: 'skill' | 'rule' | 'hook' | 'subAgent'
-    content: string
-    userPrompt: string
-  }) => Promise<{ content: string; model: string; provider?: 'openRouter' | 'cursorApi' }>
-  apiRefactor: (request: {
-    resourceType: 'skill' | 'rule' | 'hook' | 'subAgent'
-    content: string
-    userPrompt: string
-  }) => Promise<{ content: string; model: string; provider: 'openRouter' | 'cursorApi' }>
   scanAll: (options?: { probeMcps?: boolean }) => Promise<ScanResult>
   discoverProjects: (scanPath: string) => Promise<ScanResult['skills']>
   readFile: (path: string) => Promise<string>
@@ -96,6 +86,11 @@ export interface AgentManagerApi {
   readInstruction: (name: string) => Promise<string>
   saveInstruction: (name: string, content: string) => Promise<boolean>
   createInstruction: (name: string) => Promise<string>
+  apiRefactor: (params: {
+    resourceType: string
+    content: string
+    userPrompt: string
+  }) => Promise<{ content: string }>
 }
 
 declare global {

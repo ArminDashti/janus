@@ -46,10 +46,12 @@ export default defineConfig({
   },
   server: {
     port: 8006,
-    host: '127.0.0.1'
+    host: '0.0.0.0',
+    allowedHosts: ['janus.local', 'janus-api.local', 'localhost', '127.0.0.1']
   },
   preview: {
     port: 8006,
-    host: '127.0.0.1'
+    host: '0.0.0.0',
+    allowedHosts: ['janus.local', 'janus-api.local', 'localhost', '127.0.0.1']
   }
 })

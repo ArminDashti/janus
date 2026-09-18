@@ -3,15 +3,13 @@ import { cn } from '@renderer/lib/utils'
 import { useAppStore } from '@renderer/stores/appStore'
 import { GeneralTab } from '@renderer/components/settings/GeneralTab'
 import { PlatformsTab } from '@renderer/components/settings/PlatformsTab'
-import { ApiTab } from '@renderer/components/settings/ApiTab'
 import { ProjectImportSection } from '@renderer/components/settings/ProjectImportSection'
 
-type SettingsTab = 'general' | 'platforms' | 'api' | 'projects'
+type SettingsTab = 'general' | 'platforms' | 'projects'
 
 const TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: 'general', label: 'General' },
   { id: 'platforms', label: 'Platforms' },
-  { id: 'api', label: 'API' },
   { id: 'projects', label: 'Projects' }
 ]
 
@@ -36,7 +34,7 @@ export function SettingsPage() {
     <div
       className={cn(
         'h-full overflow-auto p-6',
-        tab === 'platforms' || tab === 'api' ? 'max-w-4xl' : 'max-w-3xl'
+        tab === 'platforms' ? 'max-w-4xl' : 'max-w-3xl'
       )}
     >
       <h2 className="text-lg font-medium mb-4">Settings</h2>
@@ -63,7 +61,6 @@ export function SettingsPage() {
       {tab === 'platforms' && (
         <PlatformsTab settings={localSettings} onChange={setLocalSettings} />
       )}
-      {tab === 'api' && <ApiTab settings={localSettings} onChange={setLocalSettings} />}
       {tab === 'projects' && (
         <div className="space-y-6">
           <ProjectImportSection settings={localSettings} onChange={setLocalSettings} />

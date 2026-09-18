@@ -13,7 +13,6 @@ import { MarkdownEditor } from '@renderer/components/MarkdownEditor'
 import { JsonEditor } from '@renderer/components/JsonEditor'
 import { TwoPanelLayout } from '@renderer/components/layout/TwoPanelLayout'
 import { ResourceSubViewHeader } from './ResourceListView'
-import { OpenRouterRefactorModal } from './OpenRouterRefactorModal'
 import { showMessage } from '@renderer/stores/messageStore'
 
 function fileBaseName(path: string): string {
@@ -35,21 +34,10 @@ type CanonicalResource =
   | SubAgentResource
   | ToolResource
 
-type RefactorableType = 'skill' | 'rule' | 'hook' | 'subAgent'
-
 interface ResourceEditViewProps {
   resourceType: ListableResourceType
   resourceName: string
   onBack: () => void
-}
-
-function isRefactorable(resourceType: ListableResourceType): resourceType is RefactorableType {
-  return (
-    resourceType === 'skill' ||
-    resourceType === 'rule' ||
-    resourceType === 'hook' ||
-    resourceType === 'subAgent'
-  )
 }
 
 function getFiles(resource: CanonicalResource, resourceType: ListableResourceType): string[] {
@@ -110,7 +98,6 @@ export function ResourceEditView({ resourceType, resourceName, onBack }: Resourc
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [content, setContent] = useState('')
   const [loading, setLoading] = useState(true)
-  const [showRefactor, setShowRefactor] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -143,8 +130,6 @@ export function ResourceEditView({ resourceType, resourceName, onBack }: Resourc
     setContent(await window.agentManager.readFile(path))
   }
 
-  const refactorable = isRefactorable(resourceType)
-
   if (loading) {
     return (
       <div className="flex flex-col h-full">
@@ -172,22 +157,11 @@ export function ResourceEditView({ resourceType, resourceName, onBack }: Resourc
       <ResourceSubViewHeader
         title={`Edit: ${resource.name}`}
         onBack={onBack}
-        actions={
-          refactorable ? (
-            <button
-              type="button"
-              onClick={() => setShowRefactor(true)}
-              className="px-3 py-1.5 text-sm bg-violet-700 hover:bg-violet-600 rounded"
-            >
-              Edit by AI
-            </button>
-          ) : undefined
-        }
       />
       <div className="flex-1 min-h-0">
         {showTree ? (
           <TwoPanelLayout
-            autoSaveId={`edit-${resourceType}-panels`}
+            autoSaveId={`edit-${resourceType}-panels-v2`}
             left={
               <FileTree
                 files={files}
@@ -198,12 +172,12 @@ export function ResourceEditView({ resourceType, resourceName, onBack }: Resourc
             }
             right={
               selectedFile ? (
-              <EditorPane filePath={selectedFile} content={content} onChange={setContent} resourceType={resourceType} resourceName={resourceName} />
-            ) : (
-              <div className="h-full flex items-center justify-center text-zinc-500 text-sm">
-                Select a file
-              </div>
-            )
+                <EditorPane filePath={selectedFile} content={content} onChange={setContent} resourceType={resourceType} resourceName={resourceName} />
+              ) : (
+                <div className="h-full flex items-center justify-center text-zinc-500 text-sm">
+                  Select a file
+                </div>
+              )
             }
           />
         ) : (
@@ -214,18 +188,6 @@ export function ResourceEditView({ resourceType, resourceName, onBack }: Resourc
           </div>
         )}
       </div>
-      {showRefactor && refactorable && selectedFile && (
-        <OpenRouterRefactorModal
-          resourceType={resourceType}
-          resourceName={resourceName}
-          initialContent={content}
-          initialFilePath={selectedFile}
-          onClose={() => setShowRefactor(false)}
-          onApplied={(next, path) => {
-            if (path === selectedFile) setContent(next)
-          }}
-        />
-      )}
     </div>
   )
 }

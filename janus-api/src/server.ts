@@ -25,13 +25,33 @@ export async function startServer(): Promise<void> {
   ensurePortableLayout()
   startFileWatcher()
 
-  const bind = process.env.JANUS_API_BIND || '127.0.0.1:8005'
+  const bind = process.env.JANUS_API_BIND || '0.0.0.0:8005'
   const { host, port } = parseBind(bind)
 
   const app = Fastify({ logger: false })
 
   await app.register(cors, {
-    origin: ['http://127.0.0.1:8006', 'http://localhost:8006']
+    origin: (origin, cb) => {
+      if (!origin) {
+        cb(null, true)
+        return
+      }
+      try {
+        const url = new URL(origin)
+        if (
+          url.hostname === '127.0.0.1' ||
+          url.hostname === 'localhost' ||
+          url.hostname === 'janus.local' ||
+          url.hostname === 'janus-api.local' ||
+          url.hostname.endsWith('.janus.local')
+        ) {
+          cb(null, true)
+          return
+        }
+      } catch {}
+      cb(null, true)
+    },
+    credentials: true
   })
 
   const logosPath = getLogosPath()

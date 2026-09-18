@@ -50,7 +50,7 @@ export interface UiFilterState {
 }
 
 /** Active provider for API-backed refactor (Settings → API). */
-export type ApiProviderId = 'openRouter' | 'cursorApi'
+export type ApiProviderId = 'openRouter'
 
 export interface AppSettings {
   window: { maximized: boolean }
@@ -61,10 +61,6 @@ export interface AppSettings {
   /** Which API provider Refactor uses. */
   activeApiProvider: ApiProviderId
   openRouter: {
-    apiKey: string
-    model: string
-  }
-  cursorApi: {
     apiKey: string
     model: string
   }

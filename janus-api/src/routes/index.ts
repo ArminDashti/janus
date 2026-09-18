@@ -8,11 +8,9 @@ import { createDefaultSettings } from '../shared/defaults'
 import { expandHome, skillFolderNameFromKey, stableId } from '../shared/utils'
 import { getAppRoot, getInstructionsPath } from '../app-paths'
 import { assignmentService } from '../services/assignment.service'
-import { refactorWithActiveApi } from '../services/api-refactor.service'
 import { agentDebugLog } from '../services/debug-log'
 import { fileService } from '../services/file.service'
 import { importedProjectsStore } from '../services/imported-projects-store'
-import type { OpenRouterRefactorRequest } from '../services/openrouter.service'
 import { platformCleanupService } from '../services/platform-cleanup.service'
 import { syncEnabledPlatformsToProjects } from '../services/platform-sync.service'
 import { projectBootstrapService } from '../services/project-bootstrap.service'
@@ -22,6 +20,7 @@ import { settingsStore } from '../services/settings-store'
 import { applyStartupSetting } from '../services/startup.service'
 import { startFileWatcher, stopFileWatcher } from '../services/watcher.service'
 import { getAdapter } from '../platforms'
+import { refactorWithActiveApi } from '../services/api-refactor.service'
 
 type NonMcpResourceType = Exclude<ResourceType, 'mcp'>
 type CreatableResourceType = 'skill' | 'rule' | 'hook' | 'subAgent'
@@ -725,11 +724,20 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.post(
     '/api/refactor',
     route(async (request) => {
-      const body = request.body as OpenRouterRefactorRequest
-      if (!body.resourceType || body.content === undefined || !body.userPrompt) {
+      const body = request.body as {
+        resourceType?: string
+        content?: string
+        userPrompt?: string
+      }
+      if (!body.resourceType || !body.content || !body.userPrompt) {
         throw new Error('resourceType, content, and userPrompt are required')
       }
-      return refactorWithActiveApi(body)
+      return refactorWithActiveApi({
+        resourceType: body.resourceType as 'skill' | 'rule' | 'hook' | 'subAgent',
+        content: body.content,
+        userPrompt: body.userPrompt
+      })
     })
   )
+
 }

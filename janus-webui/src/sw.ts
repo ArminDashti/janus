@@ -11,10 +11,13 @@ cleanupOutdatedCaches()
 precacheAndRoute(self.__WB_MANIFEST)
 clientsClaim()
 
-// Live Janus API / SSE on other localhost ports must never be served from cache.
+// Live Janus API / SSE on other localhost ports or janus-api.local must never be served from cache.
 registerRoute(
   ({ url }) =>
-    (url.hostname === '127.0.0.1' || url.hostname === 'localhost') &&
+    (url.hostname === '127.0.0.1' ||
+      url.hostname === 'localhost' ||
+      url.hostname === 'janus-api.local' ||
+      url.pathname.startsWith('/api/')) &&
     url.origin !== self.location.origin,
   new NetworkOnly()
 )
