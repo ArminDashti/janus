@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "types": ["node"],
+    "typeRoots": ["../janus-api/node_modules/@types"],
+    "baseUrl": ".",
+    "paths": {
+      "fastify": ["../janus-api/node_modules/fastify"],
+      "@fastify/cors": ["../janus-api/node_modules/@fastify/cors"]
+    }
+  },
+  "include": ["*.ts"]
+}

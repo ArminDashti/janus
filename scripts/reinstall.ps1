@@ -1,59 +1,53 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  Remove Janus completely, then install fresh, then start it.
+  Remove Janus completely (local + legacy), then install it fresh and start it.
 
 .DESCRIPTION
-  1) remove.ps1 (app + data)
-  2) install.ps1 (passes through port / data args)
-  3) services are started by install.ps1
+  1) remove-local.ps1 (local install, PATH entry, and the legacy install when present)
+  2) install-local.ps1 (fresh build + install; the service is started by install-local.ps1)
 
 .EXAMPLE
   .\reinstall.ps1
-  .\reinstall.ps1 api port set 7070 webui port set 7071
 #>
-
-param(
-    [Parameter(ValueFromRemainingArguments = $true)]
-    [string[]]$CommandArgs
-)
+param()
 
 $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot\_common.ps1"
 
-function Ensure-Admin {
-    if (Test-JanusAdmin) { return }
-    Write-Host 'Elevation required. Relaunching as Administrator...'
-    $argList = @(
-        '-NoProfile',
-        '-ExecutionPolicy', 'Bypass',
-        '-File', $PSCommandPath
-    )
-    if ($CommandArgs) { $argList += @($CommandArgs) }
-    Start-Process -FilePath 'powershell.exe' -Verb RunAs -ArgumentList $argList | Out-Null
-    exit 0
+# Elevate ONCE here so remove-local.ps1 runs inline: it would otherwise spawn its own elevated
+# child and return before the removal finished, racing the install below.
+$needsElevation = (Test-JanusServiceExists -Name $script:JanusApiService) -or
+    (Test-JanusServiceExists -Name $script:JanusWebuiService) -or
+    (Test-Path -LiteralPath $script:JanusInstallRoot)
+if ($needsElevation -and -not (Test-JanusAdmin)) {
+    Write-Host 'Legacy install detected. Relaunching elevated (UAC prompt)...'
+    try {
+        Start-Process -FilePath 'powershell.exe' -Verb RunAs `
+            -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $PSCommandPath) | Out-Null
+        exit 0
+    }
+    catch {
+        Write-Warning "Elevation cancelled - nothing was changed: $($_.Exception.Message)"
+        exit 1
+    }
 }
 
-Ensure-Admin
-
 Write-Host '=== reinstall: remove ==='
-& "$PSScriptRoot\remove.ps1"
+& "$PSScriptRoot\remove-local.ps1"
 $removeExit = $LASTEXITCODE
 if ($null -eq $removeExit) { $removeExit = 0 }
 if ($removeExit -ne 0) {
-    throw "remove.ps1 failed with exit code $removeExit"
+    throw "remove-local.ps1 failed with exit code $removeExit"
 }
 
 Write-Host '=== reinstall: install ==='
-# Fresh install after wipe; force data remove no (already wiped).
-$installArgs = @('data', 'remove', 'no')
-if ($CommandArgs) { $installArgs += @($CommandArgs) }
-& "$PSScriptRoot\install.ps1" @installArgs
+& "$PSScriptRoot\install-local.ps1"
 $installExit = $LASTEXITCODE
 if ($null -eq $installExit) { $installExit = 0 }
 if ($installExit -ne 0) {
-    throw "install.ps1 failed with exit code $installExit"
+    throw "install-local.ps1 failed with exit code $installExit"
 }
 
-Write-Host '=== reinstall: done (app installed and running) ==='
+Write-Host '=== reinstall: done (fresh local install, service started) ==='
 exit 0

@@ -160,7 +160,7 @@ function Invoke-JanusSc {
 
 function Clear-JanusNativeExitCode {
     # sc.exe query/delete of a missing service leaves LASTEXITCODE=1060 and would
-    # poison remove.ps1 / reinstall.ps1 process exit even when the script succeeded.
+    # poison remove-local.ps1 / reinstall.ps1 process exit even when the script succeeded.
     $global:LASTEXITCODE = 0
 }
 
@@ -605,4 +605,202 @@ function Start-JanusApp {
     catch {
         Write-Warning "Could not open browser: $($_.Exception.Message)"
     }
+}
+
+# -----------------------------------------------------------------------------
+# Local single-exe install helpers (build-janus-exe / install-local / remove-local)
+# -----------------------------------------------------------------------------
+
+function Get-JanusLocalRoot {
+    return (Join-Path $env:LOCALAPPDATA 'Janus')
+}
+
+function Get-JanusStagedExePath {
+    # Where build-janus-exe.ps1 emits the freshly built Janus.exe before install copies it in.
+    return (Join-Path $env:TEMP 'janus-build\Janus.exe')
+}
+
+function Write-JanusLocalLog {
+    param(
+        [ValidateSet('Info', 'Warning', 'Error')]
+        [string]$Level = 'Info',
+        [Parameter(Mandatory = $true)]
+        [string]$Message
+    )
+    $bucket = switch ($Level) { 'Info' { 'infos' } 'Warning' { 'warnings' } 'Error' { 'errors' } }
+    $dir = Join-Path (Join-Path (Get-JanusLocalRoot) 'logs') $bucket
+    try {
+        if (-not (Test-Path -LiteralPath $dir)) {
+            New-Item -ItemType Directory -Path $dir -Force | Out-Null
+        }
+        $day = (Get-Date).ToString('yyyy-MM-dd')
+        $line = '{0} {1}' -f (Get-Date).ToString('o'), $Message
+        Add-Content -LiteralPath (Join-Path $dir "$day.txt") -Value $line -Encoding UTF8
+    }
+    catch {
+        Write-Warning "Could not write local log ($Level): $($_.Exception.Message)"
+    }
+}
+
+function Ensure-JanusLocalLayout {
+    # Creates <root>\logs\{infos,warnings,errors} and seeds settings.json from the template
+    # when missing (an existing settings.json is never overwritten).
+    $root = Get-JanusLocalRoot
+    New-Item -ItemType Directory -Path $root -Force | Out-Null
+    foreach ($bucket in @('infos', 'warnings', 'errors')) {
+        New-Item -ItemType Directory -Path (Join-Path (Join-Path $root 'logs') $bucket) -Force | Out-Null
+    }
+    # Touch today's file in every bucket so each active day has its full log set
+    # (infos\2026-09-07.txt style), matching the CLI's ensureDailyLogs().
+    $today = (Get-Date).ToString('yyyy-MM-dd')
+    foreach ($bucket in @('infos', 'warnings', 'errors')) {
+        $todayFile = Join-Path (Join-Path (Join-Path $root 'logs') $bucket) "$today.txt"
+        if (-not (Test-Path -LiteralPath $todayFile)) { New-Item -ItemType File -Path $todayFile -Force | Out-Null }
+    }
+    $settings = Join-Path $root 'settings.json'
+    if (-not (Test-Path -LiteralPath $settings)) {
+        $template = Join-Path (Join-Path (Get-JanusRepoRoot) 'janus-api') 'resources\settings.template.json'
+        if (Test-Path -LiteralPath $template) {
+            Copy-Item -LiteralPath $template -Destination $settings -Force
+            Write-Host 'Seeded settings.json from template'
+        }
+        else {
+            Write-Warning "settings template not found ($template) - settings.json will be created on first server start"
+        }
+    }
+}
+
+function Get-JanusLocalInstances {
+    # Every Janus.exe process launched FROM the local install dir (service, local-webui, stray).
+    # Legacy WinSW wrappers (janus.exe under Program Files) never match this path.
+    $exe = Join-Path (Get-JanusLocalRoot) 'Janus.exe'
+    return @(Get-CimInstance Win32_Process -Filter "Name='Janus.exe'" -ErrorAction SilentlyContinue |
+        Where-Object { $_.ExecutablePath -and ($_.ExecutablePath -ieq $exe) })
+}
+
+function Stop-JanusLocalProcesses {
+    $procs = @(Get-JanusLocalInstances)
+    if ($procs.Count -eq 0) { return }
+    Write-Host "Closing running Janus (PID(s): $(($procs | ForEach-Object { $_.ProcessId }) -join ', '))..."
+    foreach ($p in $procs) {
+        try { Stop-Process -Id $p.ProcessId -Force -ErrorAction Stop }
+        catch { Write-Warning "Could not stop PID $($p.ProcessId): $($_.Exception.Message)" }
+    }
+    $deadline = (Get-Date).AddSeconds(8)
+    while ((Get-Date) -lt $deadline) {
+        if (@(Get-JanusLocalInstances).Count -eq 0) { return }
+        Start-Sleep -Milliseconds 500
+    }
+    if (@(Get-JanusLocalInstances).Count -gt 0) {
+        throw 'Could not stop the running Janus process (still alive after 8s).'
+    }
+}
+
+function Remove-JanusLocalPathWithRetry {
+    param(
+        [string]$Path,
+        [int]$Attempts = 6,
+        [int]$DelaySeconds = 2
+    )
+    if (-not (Test-Path -LiteralPath $Path)) { return }
+    for ($i = 1; $i -le $Attempts; $i++) {
+        Stop-JanusLocalProcesses
+        try {
+            Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction Stop
+            if (-not (Test-Path -LiteralPath $Path)) { return }
+        }
+        catch {
+            if ($i -eq $Attempts) { throw }
+            Write-Warning "Remove '$Path' attempt $i/$Attempts failed: $($_.Exception.Message)"
+            Start-Sleep -Seconds $DelaySeconds
+        }
+    }
+}
+
+function Copy-JanusLocalFileWithRetry {
+    # Requirement: close app -> remove old .exe -> replace with the new .exe (lock-tolerant).
+    param(
+        [string]$Source,
+        [string]$Destination,
+        [int]$Attempts = 6,
+        [int]$DelaySeconds = 2
+    )
+    for ($i = 1; $i -le $Attempts; $i++) {
+        Stop-JanusLocalProcesses
+        try {
+            if (Test-Path -LiteralPath $Destination) {
+                Remove-Item -LiteralPath $Destination -Force -ErrorAction Stop
+            }
+            Copy-Item -LiteralPath $Source -Destination $Destination -Force -ErrorAction Stop
+            return
+        }
+        catch {
+            if ($i -eq $Attempts) { throw }
+            Write-Warning "Replace '$Destination' attempt $i/$Attempts failed: $($_.Exception.Message)"
+            Start-Sleep -Seconds $DelaySeconds
+        }
+    }
+}
+
+function Invoke-JanusBroadcastEnvChange {
+    # Without WM_SETTINGCHANGE, newly opened terminals keep the old user PATH until next sign-in.
+    try {
+        if (-not ('JanusEnv.Native' -as [type])) {
+            Add-Type -Namespace JanusEnv -Name Native -MemberDefinition @'
+[DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam, uint fuFlags, uint uTimeout, out UIntPtr lpdwResult);
+'@
+        }
+        [UIntPtr]$result = [UIntPtr]::Zero
+        [void][JanusEnv.Native]::SendMessageTimeout([IntPtr]0xffff, [uint32]0x1A, [UIntPtr]::Zero, 'Environment', [uint32]0x2, [uint32]5000, [ref]$result)
+    }
+    catch {
+        Write-Warning "Could not broadcast environment change: $($_.Exception.Message)"
+    }
+}
+
+function Add-JanusUserPathEntry {
+    param([string]$Dir)
+    $norm = $Dir.TrimEnd('\')
+    $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+    $entries = @()
+    if ($userPath) { $entries = @($userPath -split ';' | Where-Object { $_ -and $_.Trim() }) }
+    $present = $false
+    foreach ($e in $entries) { if ($e.Trim().TrimEnd('\') -ieq $norm) { $present = $true; break } }
+    if (-not $present) {
+        $entries += $norm
+        [Environment]::SetEnvironmentVariable('Path', ($entries -join ';'), 'User')
+        Invoke-JanusBroadcastEnvChange
+        Write-Host "Added $norm to your user PATH (new terminals pick it up; this session updated too)."
+    }
+    else {
+        Write-Host "User PATH already contains $norm."
+    }
+    $curPresent = $false
+    foreach ($e in @($env:Path -split ';')) { if ($e -and $e.Trim().TrimEnd('\') -ieq $norm) { $curPresent = $true; break } }
+    if (-not $curPresent) { $env:Path = $env:Path.TrimEnd(';') + ';' + $norm }
+}
+
+function Remove-JanusUserPathEntry {
+    param([string]$Dir)
+    $norm = $Dir.TrimEnd('\')
+    $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+    if ($userPath) {
+        $kept = @($userPath -split ';' | Where-Object { $_ -and $_.Trim().TrimEnd('\') -ine $norm })
+        if ($kept.Count -eq 0) {
+            [Environment]::SetEnvironmentVariable('Path', $null, 'User')
+            Invoke-JanusBroadcastEnvChange
+            Write-Host "Removed $norm from your user PATH."
+        }
+        else {
+            $newPath = $kept -join ';'
+            if ($newPath -ne $userPath) {
+                [Environment]::SetEnvironmentVariable('Path', $newPath, 'User')
+                Invoke-JanusBroadcastEnvChange
+                Write-Host "Removed $norm from your user PATH."
+            }
+        }
+    }
+    $keptCur = @($env:Path -split ';' | Where-Object { $_ -and $_.Trim().TrimEnd('\') -ine $norm })
+    if ($keptCur.Count -ne @($env:Path -split ';').Count) { $env:Path = $keptCur -join ';' }
 }
