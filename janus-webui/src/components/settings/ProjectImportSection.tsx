@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
-import { Trash2 } from 'lucide-react'
+import { FolderOpen, Trash2 } from 'lucide-react'
 import type { AppSettings, ProjectInfo } from '@shared/types'
 import { useAppStore } from '@renderer/stores/appStore'
 import { showMessage } from '@renderer/stores/messageStore'
+import { FolderPickerModal } from '@renderer/components/FolderPickerModal'
 
 interface ProjectImportSectionProps {
   settings: AppSettings
@@ -19,6 +20,7 @@ function parsePaths(input: string): string[] {
 export function ProjectImportSection({ settings, onChange }: ProjectImportSectionProps) {
   const { loadSettings, refreshScan } = useAppStore()
   const [pathInput, setPathInput] = useState('')
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   const projects = useMemo(
     () => settings.projectRoots.flatMap((r) => r.projects).sort((a, b) => a.name.localeCompare(b.name)),
@@ -77,9 +79,18 @@ export function ProjectImportSection({ settings, onChange }: ProjectImportSectio
         are loaded from imported projects only.
       </p>
       <div className="space-y-2 max-w-2xl">
-        <label className="block text-xs text-zinc-500" htmlFor="project-paths">
-          Project paths (one per line)
-        </label>
+        <div className="flex items-center justify-between gap-2">
+          <label className="block text-xs text-zinc-500" htmlFor="project-paths">
+            Project paths (one per line)
+          </label>
+          <button
+            type="button"
+            onClick={() => setPickerOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-zinc-700 rounded hover:bg-zinc-800 text-zinc-300"
+          >
+            <FolderOpen size={14} /> Browse…
+          </button>
+        </div>
         <textarea
           id="project-paths"
           value={pathInput}
@@ -96,6 +107,18 @@ export function ProjectImportSection({ settings, onChange }: ProjectImportSectio
           Import projects
         </button>
       </div>
+
+      <FolderPickerModal
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onSelect={(picked) => {
+          setPathInput((prev) => {
+            const base = prev.replace(/\s+$/, '')
+            return base ? `${base}\n${picked}` : picked
+          })
+          setPickerOpen(false)
+        }}
+      />
 
       {projects.length === 0 ? (
         <p className="text-sm text-zinc-500">No projects configured yet.</p>

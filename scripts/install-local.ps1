@@ -19,10 +19,12 @@
 
   After installing, open a NEW terminal and use:
     janus doctor | janus status | janus help
+    janus run [--port=N] [--no-open]
+    janus port [--port=N]
     janus service start [--port=N] | janus service stop | janus service status
     janus service restart [--port=N]
-    janus local-webui run
-  (--port defaults to a random free port in the safe range 49152-65535.)
+    janus remove | janus update
+  (--port defaults to the configured port, initial default 64850; change it with: janus port --port=N.)
 
 .EXAMPLE
   .\install-local.ps1
@@ -75,5 +77,5 @@ $outcome = if ($wasRunning) { 'updated, service restarted' } elseif ($alreadyIns
 Write-JanusLocalLog Info "install-local: $outcome"
 Write-Host ''
 Write-Host "Janus installed: $exe"
-Write-Host 'Open a NEW terminal, then try:  janus doctor   |   janus help   |   janus local-webui run'
+Write-Host 'Open a NEW terminal, then try:  janus doctor   |   janus help   |   janus run'
 exit 0

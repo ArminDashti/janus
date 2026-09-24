@@ -3,7 +3,10 @@
 // Implements the local-install command surface:
 //   janus doctor | status | help
 //   janus service start|stop|status|restart [--port=N]
-//   janus local-webui run [--port=N] [--no-open]
+//   janus run [--port=N] [--no-open]
+//   janus port [--port=N]           (show or set the default port)
+//   janus remove                    (completely remove the local install)
+//   janus update                    (placeholder — no implementation yet)
 //   janus __serve --port=N          (internal: background server process)
 //
 // The server is composed here from janus-api's exported pieces (registerRoutes,
@@ -11,7 +14,7 @@
 // served from the SAME Fastify instance (same-origin, required because the port
 // is random per start). janus-api sources are not modified.
 import { spawn, spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, readFileSync, statSync, appendFileSync, unlinkSync, openSync, closeSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, statSync, appendFileSync, unlinkSync, openSync, closeSync, writeFileSync } from 'node:fs'
 import { dirname, extname, join, normalize, sep } from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { format } from 'node:util'
@@ -36,9 +39,9 @@ const settingsPath = join(installDir, 'settings.json')
 // Everything under janus-api resolves settings/data from the install dir.
 process.env.JANUS_APP_ROOT = process.env.JANUS_APP_ROOT || installDir
 
-const SAFE_PORT_MIN = 49152
-const SAFE_PORT_MAX = 65535
-const AUTO_PORT_ATTEMPTS = 5
+// Default port used by every command unless the user changes it (janus port --port=N,
+// persisted top-level in settings.json) or overrides it per invocation (--port=N).
+const DEFAULT_PORT = 64850
 
 const SERVER_FLAG = '__serve'
 const SERVER_ARG = `--port=`
@@ -215,13 +218,43 @@ function bindTest(port: number): Promise<boolean> {
   })
 }
 
-async function pickRandomSafePort(): Promise<number> {
-  const span = SAFE_PORT_MAX - SAFE_PORT_MIN + 1
-  for (let i = 0; i < 50; i++) {
-    const port = SAFE_PORT_MIN + Math.floor(Math.random() * span)
-    if (await bindTest(port)) return port
+function isValidPort(port: unknown): port is number {
+  return typeof port === 'number' && Number.isInteger(port) && port >= 1 && port <= 65535
+}
+
+// The default port lives top-level in settings.json ("port": N) so it survives
+// janus-api's settings rewrites (migrateSettings spreads unknown top-level keys).
+function readConfiguredPort(): number {
+  try {
+    if (existsSync(settingsPath)) {
+      const parsed = JSON.parse(readFileSync(settingsPath, 'utf-8')) as { port?: unknown }
+      if (parsed && typeof parsed === 'object' && isValidPort(parsed.port)) return parsed.port
+    }
+  } catch {
+    // Unreadable/corrupt settings fall back to the default port.
   }
-  throw new Error(`Could not find a free port in ${SAFE_PORT_MIN}-${SAFE_PORT_MAX}`)
+  return DEFAULT_PORT
+}
+
+function writeConfiguredPort(port: number): void {
+  let settings: Record<string, unknown> = {}
+  try {
+    if (existsSync(settingsPath)) {
+      const parsed = JSON.parse(readFileSync(settingsPath, 'utf-8'))
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        settings = parsed as Record<string, unknown>
+      }
+    }
+  } catch {
+    // Corrupt settings.json is replaced rather than merged — JSON.parse already failed.
+  }
+  settings.port = port
+  mkdirSync(dirname(settingsPath), { recursive: true })
+  writeFileSync(settingsPath, `${JSON.stringify(settings, null, 2)}\n`, 'utf-8')
+}
+
+function portInUseHint(explicit: boolean): string {
+  return explicit ? '' : ' (change the default with: janus port --port=<N>)'
 }
 
 // ---------------------------------------------------------------------------
@@ -237,7 +270,7 @@ interface Instance {
 
 const PS_JSON_FLAGS = ['-NoProfile', '-NonInteractive', '-Command']
 
-function findJanusInstances(match?: 'serve' | 'any'): Instance[] {
+function findJanusInstances(match?: 'serve' | 'any', excludePid?: number): Instance[] {
   const exePath = process.execPath.replace(/'/g, "''")
   // Only ever target THIS install's exe (there may be stray Janus.exe copies elsewhere).
   const script =
@@ -260,10 +293,11 @@ function findJanusInstances(match?: 'serve' | 'any'): Instance[] {
   for (const item of list) {
     const rec = item as { ProcessId?: number; CommandLine?: string }
     if (typeof rec.ProcessId !== 'number') continue
+    if (excludePid !== undefined && rec.ProcessId === excludePid) continue
     const commandLine = rec.CommandLine || ''
     const mode: Instance['mode'] = commandLine.includes(SERVER_FLAG)
       ? 'serve'
-      : commandLine.includes('local-webui')
+      : commandLine.includes('local-webui') || /\srun(\s|$)/.test(commandLine)
         ? 'webui'
         : 'unknown'
     const pm = /--port=(\d+)/.exec(commandLine)
@@ -277,13 +311,13 @@ function killInstance(pid: number): void {
   spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' })
 }
 
-function stopAllInstances(match?: 'serve' | 'any'): number {
-  const found = findJanusInstances(match)
+function stopAllInstances(match?: 'serve' | 'any', excludePid?: number): number {
+  const found = findJanusInstances(match, excludePid)
   for (const i of found) killInstance(i.pid)
   if (found.length > 0) {
     const deadline = performance.now() + 5000
     while (performance.now() < deadline) {
-      if (findJanusInstances(match).length === 0) break
+      if (findJanusInstances(match, excludePid).length === 0) break
       spawnSync('ping', ['-n', '2', '127.0.0.1'], { windowsHide: true, stdio: 'ignore' })
     }
   }
@@ -434,16 +468,20 @@ Usage:
   janus doctor                          Check installation health
   janus status                          Show install and service status
   janus help                            Show this help
-  janus service start [--port=N]        Start the background service
-                                        (default: random free port in ${SAFE_PORT_MIN}-${SAFE_PORT_MAX})
-  janus service stop                    Stop the background service
-  janus service status                  Show background service status
-  janus service restart [--port=N]      Restart the background service
-                                        (default: a NEW random free port)
-  janus local-webui run [--port=N] [--no-open]
+  janus run [--port=N] [--no-open]
                                         Run API + WebUI in the foreground and open
                                         the browser (if the background service is
                                         already running, opens its URL instead)
+  janus port [--port=N]                 Show the default port, or set it
+                                        (default: ${DEFAULT_PORT}; persisted in settings.json)
+  janus service start [--port=N]        Start the background service
+                                        (default: the configured port)
+  janus service stop                    Stop the background service
+  janus service status                  Show background service status
+  janus service restart [--port=N]      Restart the background service
+                                        (default: the configured port)
+  janus remove                          Completely remove the local Janus install
+  janus update                          Update Janus (not implemented yet)
 `
 
 function cmdHelp(): number {
@@ -490,43 +528,27 @@ async function cmdServiceStart(argv: string[]): Promise<number> {
     return 0
   }
 
-  const attempts = explicit ? 1 : AUTO_PORT_ATTEMPTS
-  for (let attempt = 0; attempt < attempts; attempt++) {
-    let chosen: number
-    if (explicit && port !== null) {
-      if (!(await bindTest(port))) {
-        fail(`Port ${port} is already in use.`)
-      }
-      chosen = port
-    } else {
-      chosen = await pickRandomSafePort()
-    }
-
-    const child = spawn(process.execPath, [SERVER_FLAG, `${SERVER_ARG}${chosen}`], {
-      detached: true,
-      stdio: 'ignore',
-      windowsHide: true,
-      env: { ...process.env }
-    })
-    child.unref()
-
-    if (await waitUntilHealthy(chosen, 6000)) {
-      console.log(`Service started (pid ${child.pid}) at http://127.0.0.1:${chosen}/`)
-      return 0
-    }
-
-    // Health wait failed: is the child alive?
-    const alive = findJanusInstances('serve').some((i) => i.port === chosen)
-    if (alive) {
-      // Bind race or slow start; kill and retry with a fresh port (auto mode only).
-      stopAllInstances('serve')
-      if (explicit) break
-      continue
-    }
-    if (explicit) break
-    // Child died (likely port stolen between test and bind); try another port.
-    console.warn(`Server on port ${chosen} did not come up; retrying with a new port`)
+  const chosen = explicit && port !== null ? port : readConfiguredPort()
+  if (!(await bindTest(chosen))) {
+    console.error(`Port ${chosen} is already in use.${portInUseHint(explicit)}`)
+    return 1
   }
+
+  const child = spawn(process.execPath, [SERVER_FLAG, `${SERVER_ARG}${chosen}`], {
+    detached: true,
+    stdio: 'ignore',
+    windowsHide: true,
+    env: { ...process.env }
+  })
+  child.unref()
+
+  if (await waitUntilHealthy(chosen, 6000)) {
+    console.log(`Service started (pid ${child.pid}) at http://127.0.0.1:${chosen}/`)
+    return 0
+  }
+
+  // Health wait failed: kill the child if it is alive, then report with log tail.
+  if (findJanusInstances('serve').some((i) => i.port === chosen)) stopAllInstances('serve')
 
   const tail = tailErrors()
   console.error('Service failed to start.')
@@ -565,18 +587,13 @@ async function cmdServiceRestart(argv: string[]): Promise<number> {
   stopAllInstances('serve')
   const argv2: string[] = []
   if (explicit && port !== null) argv2.push(`--port=${port}`)
-  // No explicit port: start picks a NEW random port (per spec).
+  // No explicit port: start uses the configured default port.
   return cmdServiceStart(argv2)
 }
 
-async function cmdLocalWebui(argv: string[]): Promise<number> {
-  const sub = argv[0]
-  if (sub !== 'run') {
-    console.error(`Unknown local-webui command: ${sub || '(missing)'}\n\n${USAGE}`)
-    return 1
-  }
-  const { port, explicit } = parsePortFlag(argv.slice(1))
-  const noOpen = argv.slice(1).some((a) => a === '--no-open')
+async function cmdRun(argv: string[]): Promise<number> {
+  const { port, explicit } = parsePortFlag(argv)
+  const noOpen = argv.some((a) => a === '--no-open')
 
   // If a background service is already up, just open its URL.
   const bg = findJanusInstances('serve')
@@ -587,25 +604,108 @@ async function cmdLocalWebui(argv: string[]): Promise<number> {
     return 0
   }
 
-  const attempts = explicit ? 1 : AUTO_PORT_ATTEMPTS
-  for (let attempt = 0; attempt < attempts; attempt++) {
-    const chosen = (explicit && port !== null) ? port : await pickRandomSafePort()
-    if (explicit && !(await bindTest(chosen))) fail(`Port ${chosen} is already in use.`)
-    try {
-      await serve(chosen)
-      const url = `http://127.0.0.1:${chosen}/`
-      if (!noOpen) openBrowser(url)
-      console.log('Press Ctrl+C to stop.')
-      // Keep the process alive until signal; serve() registered handlers.
-      await new Promise<void>(() => { /* run until SIGINT/SIGTERM */ })
-      return 0
-    } catch (err) {
-      const e = err as NodeJS.ErrnoException
-      if (e && e.code === 'EADDRINUSE' && !explicit) continue
-      throw err
-    }
+  const chosen = explicit && port !== null ? port : readConfiguredPort()
+  if (!(await bindTest(chosen))) {
+    console.error(`Port ${chosen} is already in use.${portInUseHint(explicit)}`)
+    return 1
   }
-  console.error('Could not start the WebUI server.')
+
+  try {
+    await serve(chosen)
+  } catch (err) {
+    const e = err as NodeJS.ErrnoException
+    if (e && e.code === 'EADDRINUSE') {
+      console.error(`Port ${chosen} is already in use.${portInUseHint(explicit)}`)
+      return 1
+    }
+    throw err
+  }
+
+  const url = `http://127.0.0.1:${chosen}/`
+  if (!noOpen) openBrowser(url)
+  console.log('Press Ctrl+C to stop.')
+  // Keep the process alive until signal; serve() registered handlers.
+  await new Promise<void>(() => { /* run until SIGINT/SIGTERM */ })
+  return 0
+}
+
+async function cmdPort(argv: string[]): Promise<number> {
+  const { port, explicit } = parsePortFlag(argv)
+  if (!explicit) {
+    const current = readConfiguredPort()
+    const source = existsSync(settingsPath) && current !== DEFAULT_PORT ? 'settings.json' : 'built-in default'
+    console.log(`Default port: ${current} (${source})`)
+    console.log('Set it with: janus port --port=<N>')
+    return 0
+  }
+  if (port === null) fail('Invalid port.')
+  writeConfiguredPort(port)
+  console.log(`Default port set to ${port} (saved in settings.json).`)
+  if (findJanusInstances('serve').length > 0) {
+    console.log('Restart the service for the change to take effect: janus service restart')
+  }
+  return 0
+}
+
+async function cmdRemove(): Promise<number> {
+  // Safety: only ever delete a real installed layout (Janus.exe next to us). This
+  // keeps dev runs (`node bundle.cjs`, execPath = node.exe) from deleting a random dir.
+  const exeInInstall = join(installDir, 'Janus.exe')
+  if (process.execPath.toLowerCase() !== exeInInstall.toLowerCase() || !existsSync(exeInInstall)) {
+    console.error(`Refusing to remove: ${installDir} is not an installed Janus location (expected ${exeInInstall}).`)
+    return 1
+  }
+
+  // 1. Stop every other Janus.exe instance of this install (service + foreground run).
+  //    Our own pid must be excluded: killing it would abort this removal mid-flight.
+  const stopped = stopAllInstances('any', process.pid)
+  console.log(stopped > 0 ? `Stopped ${stopped} running Janus process${stopped === 1 ? '' : 'es'}.` : 'No running Janus processes.')
+
+  // 2. Drop the user PATH entry (mirrors scripts/_common.ps1 Remove-JanusUserPathEntry).
+  removeUserPathEntry(installDir)
+
+  // 3. Legacy Windows services need elevation; point at the script instead of failing.
+  const legacy = spawnSync('sc.exe', ['query', 'janus'], { windowsHide: true, stdio: 'ignore' })
+  if (legacy.status === 0) {
+    console.warn('Legacy Windows service "janus" detected — remove it with scripts\\remove-local.ps1 (elevation required).')
+  }
+
+  // 4. The install dir cannot be deleted while THIS exe is running from it:
+  //    hand deletion to a detached helper that waits for our exit, then deletes.
+  const ps =
+    `while (Get-Process -Id ${process.pid} -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 400 }; ` +
+    `Remove-Item -LiteralPath '${installDir.replace(/'/g, "''")}' -Recurse -Force -ErrorAction SilentlyContinue`
+  const helper = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', ps], {
+    detached: true,
+    stdio: 'ignore',
+    windowsHide: true,
+    cwd: process.env.TEMP || 'C:\\'
+  })
+  helper.unref()
+
+  console.log(`Janus will be removed from ${installDir} when this process exits.`)
+  return 0
+}
+
+function removeUserPathEntry(dir: string): void {
+  const norm = dir.replace(/\\+$/, '').replace(/'/g, "''")
+  const script =
+    `$norm = '${norm}'; ` +
+    `$userPath = [Environment]::GetEnvironmentVariable('Path', 'User'); ` +
+    `if ($userPath) { ` +
+    `$kept = @($userPath -split ';' | Where-Object { $_ -and $_.Trim() -and $_.Trim().TrimEnd('\\') -ine $norm }); ` +
+    `if ($kept.Count -eq 0) { [Environment]::SetEnvironmentVariable('Path', $null, 'User') } ` +
+    `else { $newPath = $kept -join ';'; if ($newPath -ne $userPath) { [Environment]::SetEnvironmentVariable('Path', $newPath, 'User') } } }`
+  const res = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
+    encoding: 'utf-8',
+    windowsHide: true
+  })
+  if (res.status === 0) console.log('Removed install dir from user PATH.')
+  else console.warn('Could not remove the install dir from user PATH (remove it manually).')
+}
+
+function cmdUpdate(): number {
+  console.error('janus update: not implemented yet.')
   return 1
 }
 
@@ -644,6 +744,8 @@ async function cmdStatus(): Promise<number> {
   } else {
     console.log(`Settings:    ${settingsPath} (missing — created on first server start)`)
   }
+
+  console.log(`Default port: ${readConfiguredPort()}`)
 
   const found = findJanusInstances('serve')
   if (found.length === 0) {
@@ -731,15 +833,7 @@ async function cmdDoctor(): Promise<number> {
   if (git.status === 0) ok('git', 'available')
   else warn('git', 'not found on PATH — resource scans that use git will fail')
 
-  // 7. Port range usable.
-  let portOk = false
-  for (let i = 0; i < 10 && !portOk; i++) {
-    portOk = await bindTest(SAFE_PORT_MIN + Math.floor(Math.random() * (SAFE_PORT_MAX - SAFE_PORT_MIN + 1)))
-  }
-  if (portOk) ok('ports', `can bind in ${SAFE_PORT_MIN}-${SAFE_PORT_MAX}`)
-  else bad('ports', `cannot bind any port in ${SAFE_PORT_MIN}-${SAFE_PORT_MAX}`)
-
-  // 8. Service state.
+  // 7. Service state (needed by the default-port check below).
   const found = findJanusInstances('serve')
   if (found.length === 0) {
     warn('service', 'stopped (janus service start to run it)')
@@ -748,6 +842,16 @@ async function cmdDoctor(): Promise<number> {
     const healthy = e.port !== null ? await probeHealth(e.port) : false
     if (healthy) ok('service', `running (pid ${e.pid}, port ${e.port})`)
     else bad('service', `running (pid ${e.pid}) but health check failed on port ${e.port}`)
+  }
+
+  // 8. Default port free, or already held by our own running service.
+  const defaultPort = readConfiguredPort()
+  if (await bindTest(defaultPort)) {
+    ok('port', `default port ${defaultPort} is free`)
+  } else if (found.some((i) => i.port === defaultPort)) {
+    ok('port', `default port ${defaultPort} in use by the running service`)
+  } else {
+    bad('port', `default port ${defaultPort} is in use by another program — change it with: janus port --port=<N>`)
   }
 
   // 9. Legacy Windows services.
@@ -811,8 +915,17 @@ async function main(): Promise<void> {
       }
       break
     }
-    case 'local-webui':
-      process.exit(await cmdLocalWebui(argv.slice(1)))
+    case 'run':
+      process.exit(await cmdRun(argv.slice(1)))
+      break
+    case 'port':
+      process.exit(await cmdPort(argv.slice(1)))
+      break
+    case 'remove':
+      process.exit(await cmdRemove())
+      break
+    case 'update':
+      process.exit(cmdUpdate())
       break
     default:
       console.error(`Unknown command: ${cmd}\n\n${USAGE}`)

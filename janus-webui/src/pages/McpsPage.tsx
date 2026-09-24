@@ -1,12 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Pencil, Plus, Trash } from 'lucide-react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
+import { ChevronDown, FlaskConical, Loader2, Pencil, Plus, Trash } from 'lucide-react'
 import { JsonEditor } from '@renderer/components/JsonEditor'
-import { ResourceTable } from '@renderer/components/resources/ResourceTable'
 import { ResourceSubViewHeader } from '@renderer/components/resources/ResourceListView'
 import { useAppStore } from '@renderer/stores/appStore'
 import { showMessage } from '@renderer/stores/messageStore'
 import { cn } from '@renderer/lib/utils'
-import type { McpResource } from '@shared/types'
+import type { McpProbeResult, McpResource } from '@shared/types'
 
 type ViewMode = 'list' | 'edit'
 
@@ -25,6 +24,13 @@ function statusBadgeClass(status: McpResource['status']): string {
   }
 }
 
+/** Directory containing the MCP config file (mcp.json). */
+function configDir(configPath: string): string {
+  const normalized = configPath.replace(/[\\/]+$/, '')
+  const idx = Math.max(normalized.lastIndexOf('\\'), normalized.lastIndexOf('/'))
+  return idx > 0 ? normalized.slice(0, idx) : normalized
+}
+
 export function McpsPage() {
   const { scan, refreshScan } = useAppStore()
   const [view, setView] = useState<ViewMode>('list')
@@ -33,6 +39,9 @@ export function McpsPage() {
   const [addJson, setAddJson] = useState('{\n  "command": "npx",\n  "args": ["-y", "some-mcp-server"]\n}')
   const [addName, setAddName] = useState('')
   const [paramsJson, setParamsJson] = useState('')
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const [testing, setTesting] = useState<string | null>(null)
+  const [testResults, setTestResults] = useState<Record<string, McpProbeResult>>({})
 
   useEffect(() => {
     void refreshScan({ probeMcps: true })
@@ -48,8 +57,11 @@ export function McpsPage() {
         map.set(m.name, { ...m, platforms: [...m.platforms] })
       }
     }
-    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name))
-  }, [scan])
+    const merged = [...map.values()].map((m) =>
+      testResults[m.name] ? { ...m, ...testResults[m.name] } : m
+    )
+    return merged.sort((a, b) => a.name.localeCompare(b.name))
+  }, [scan, testResults])
 
   const openEdit = (mcp: McpResource) => {
     setSelected(mcp)
@@ -66,7 +78,31 @@ export function McpsPage() {
     })
     if (!confirmed) return
     await window.agentManager.deleteMcp(mcp.name, mcp.configPath)
+    setTestResults((prev) => {
+      const next = { ...prev }
+      delete next[mcp.name]
+      return next
+    })
     await refreshScan({ probeMcps: true })
+  }
+
+  const handleTest = async (mcp: McpResource) => {
+    setTesting(mcp.name)
+    try {
+      const result = await window.agentManager.testMcp(mcp.name, mcp.params)
+      setTestResults((prev) => ({ ...prev, [mcp.name]: result }))
+    } catch (e) {
+      setTestResults((prev) => ({
+        ...prev,
+        [mcp.name]: {
+          status: 'error',
+          tools: [],
+          error: e instanceof Error ? e.message : 'Test failed'
+        }
+      }))
+    } finally {
+      setTesting(null)
+    }
   }
 
   const handleAdd = async () => {
@@ -113,6 +149,9 @@ export function McpsPage() {
   }
 
   if (view === 'edit' && selected) {
+    const displayed = testResults[selected.name]
+      ? { ...selected, ...testResults[selected.name] }
+      : selected
     return (
       <div className="flex flex-col h-full">
         <ResourceSubViewHeader
@@ -128,6 +167,11 @@ export function McpsPage() {
             <p className="text-xs font-mono text-zinc-600 truncate" title={selected.configPath}>
               {selected.configPath}
             </p>
+            {displayed.error && (
+              <p className="text-xs text-red-400" title={displayed.error}>
+                {displayed.error}
+              </p>
+            )}
           </div>
 
           <div className="flex-1 min-h-0">
@@ -143,11 +187,13 @@ export function McpsPage() {
 
           <div className="shrink-0 max-h-48 overflow-auto">
             <h4 className="text-sm font-medium mb-2">Tools</h4>
-            {selected.tools.length === 0 ? (
-              <p className="text-sm text-zinc-500">No cached tools (status: {selected.status})</p>
+            {displayed.tools.length === 0 ? (
+              <p className="text-sm text-zinc-500">
+                No cached tools (status: {displayed.status})
+              </p>
             ) : (
               <ul className="text-sm space-y-2">
-                {selected.tools.map((t) => (
+                {displayed.tools.map((t) => (
                   <li key={t.name} className="border-b border-zinc-800/80 pb-2 last:border-0">
                     <div className="font-medium text-zinc-200">{t.name}</div>
                     <div className="text-zinc-500 text-xs mt-0.5">
@@ -163,55 +209,6 @@ export function McpsPage() {
     )
   }
 
-  const columns = [
-    {
-      key: 'name',
-      label: 'Name',
-      render: (row: McpResource) => <span className="font-medium text-zinc-200">{row.name}</span>
-    },
-    {
-      key: 'status',
-      label: 'Status',
-      render: (row: McpResource) => (
-        <span className={cn('text-xs px-2 py-0.5 rounded', statusBadgeClass(row.status))}>
-          {row.status}
-        </span>
-      )
-    },
-    {
-      key: 'tools',
-      label: 'Tools',
-      render: (row: McpResource) => (
-        <span className="text-zinc-400">{row.tools.length}</span>
-      )
-    },
-    {
-      key: 'actions',
-      label: '',
-      className: 'w-20',
-      render: (row: McpResource) => (
-        <div className="flex items-center gap-0.5 whitespace-nowrap">
-          <button
-            type="button"
-            onClick={() => openEdit(row)}
-            className="p-1.5 rounded hover:bg-zinc-800 text-zinc-500 hover:text-zinc-200"
-            title="Edit"
-          >
-            <Pencil size={15} strokeWidth={1.75} />
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleDelete(row)}
-            className="p-1.5 rounded hover:bg-zinc-800 text-zinc-500 hover:text-red-400"
-            title="Delete"
-          >
-            <Trash size={15} strokeWidth={1.75} />
-          </button>
-        </div>
-      )
-    }
-  ]
-
   return (
     <div className="flex flex-col h-full">
       <header className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
@@ -225,12 +222,144 @@ export function McpsPage() {
         </button>
       </header>
 
-      <ResourceTable
-        columns={columns}
-        rows={mcps}
-        rowKey={(r) => r.name}
-        emptyMessage="No MCP servers configured"
-      />
+      <div className="overflow-auto flex-1 min-h-0">
+        <table className="w-full text-sm border-collapse">
+          <thead className="sticky top-0 bg-zinc-950 z-10">
+            <tr className="border-b border-zinc-800 text-left text-zinc-400">
+              <th className="px-4 py-2 font-medium">Name</th>
+              <th className="px-4 py-2 font-medium">Status</th>
+              <th className="px-4 py-2 font-medium">Tools</th>
+              <th className="px-4 py-2 font-medium">Directory</th>
+              <th className="px-4 py-2 w-32" />
+            </tr>
+          </thead>
+          <tbody>
+            {mcps.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-8 text-center text-zinc-500">
+                  No MCP servers configured
+                </td>
+              </tr>
+            ) : (
+              mcps.map((row) => {
+                const isOpen = expanded === row.name
+                const isTesting = testing === row.name
+                return (
+                  <Fragment key={row.name}>
+                    <tr
+                      className="border-b border-zinc-900 hover:bg-zinc-900/50 transition-colors"
+                    >
+                      <td className="px-4 py-2.5 text-zinc-200 font-medium">{row.name}</td>
+                      <td className="px-4 py-2.5">
+                        <div className="space-y-1">
+                          <span
+                            className={cn(
+                              'text-xs px-2 py-0.5 rounded inline-block',
+                              statusBadgeClass(row.status)
+                            )}
+                          >
+                            {row.status}
+                          </span>
+                          {row.error && (
+                            <p
+                              className="text-[11px] text-red-400 max-w-[280px] line-clamp-2"
+                              title={row.error}
+                            >
+                              {row.error}
+                            </p>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <button
+                          type="button"
+                          onClick={() => setExpanded(isOpen ? null : row.name)}
+                          className="flex items-center gap-1 text-zinc-300 hover:text-zinc-100"
+                          title="Show tools"
+                        >
+                          <span>
+                            {row.tools.length} tool{row.tools.length === 1 ? '' : 's'}
+                          </span>
+                          <ChevronDown
+                            size={13}
+                            className={cn('transition-transform', isOpen && 'rotate-180')}
+                          />
+                        </button>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <span
+                          className="font-mono text-xs text-zinc-500 max-w-[260px] truncate block"
+                          title={row.configPath}
+                        >
+                          {configDir(row.configPath)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <div className="flex items-center gap-0.5 whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => void handleTest(row)}
+                            disabled={isTesting}
+                            className="p-1.5 rounded hover:bg-zinc-800 text-zinc-500 hover:text-emerald-400 disabled:opacity-50"
+                            title="Test connection"
+                          >
+                            {isTesting ? (
+                              <Loader2 size={15} strokeWidth={1.75} className="animate-spin" />
+                            ) : (
+                              <FlaskConical size={15} strokeWidth={1.75} />
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openEdit(row)}
+                            className="p-1.5 rounded hover:bg-zinc-800 text-zinc-500 hover:text-zinc-200"
+                            title="Edit"
+                          >
+                            <Pencil size={15} strokeWidth={1.75} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleDelete(row)}
+                            className="p-1.5 rounded hover:bg-zinc-800 text-zinc-500 hover:text-red-400"
+                            title="Delete"
+                          >
+                            <Trash size={15} strokeWidth={1.75} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                    {isOpen && (
+                      <tr className="border-b border-zinc-900 bg-zinc-950/60">
+                        <td colSpan={5} className="px-4 py-3">
+                          {row.tools.length === 0 ? (
+                            <p className="text-xs text-zinc-500">
+                              No tools discovered — status: {row.status}. Run a test to probe this
+                              server for tools.
+                            </p>
+                          ) : (
+                            <ul className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
+                              {row.tools.map((tool) => (
+                                <li key={tool.name} className="min-w-0">
+                                  <span className="text-xs font-medium text-zinc-200">
+                                    {tool.name}
+                                  </span>
+                                  <span className="text-xs text-zinc-500 ml-2">
+                                    {tool.description?.trim() || '—'}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                )
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
 
       {addOpen && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">

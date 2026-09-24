@@ -1,6 +1,7 @@
 {
   "window": { "maximized": true },
   "startup": { "runOnLogin": false },
+  "theme": "vscode-dark",
   "dataPath": "./data",
   "platforms": [],
   "projectRoots": [],

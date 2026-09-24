@@ -201,6 +201,7 @@ export class ScannerService {
       if (probe) {
         mcp.status = probe.status
         mcp.tools = probe.tools
+        mcp.error = probe.error
       }
     }
   }

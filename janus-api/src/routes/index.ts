@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, readdirSync } from 'fs'
+import { homedir } from 'os'
 import { basename, join } from 'path'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { v4 as uuidv4 } from 'uuid'
@@ -12,6 +13,7 @@ import { agentDebugLog } from '../services/debug-log'
 import { fileService } from '../services/file.service'
 import { importedProjectsStore } from '../services/imported-projects-store'
 import { platformCleanupService } from '../services/platform-cleanup.service'
+import { probeMcpServers } from '../services/mcp-probe.service'
 import { syncEnabledPlatformsToProjects } from '../services/platform-sync.service'
 import { projectBootstrapService } from '../services/project-bootstrap.service'
 import { resourceService } from '../services/resource.service'
@@ -182,10 +184,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     '/api/files/entries',
     route(async (request) => {
       const query = request.query as { path?: string }
-      if (!query.path) {
-        throw new Error('path query parameter is required')
-      }
-      return fileService.listEntries(query.path)
+      // No path → start of the folder browser (user home directory)
+      return fileService.listEntries(query.path || homedir())
     })
   )
 
@@ -463,6 +463,24 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       config.mcpServers[body.name] = body.params
       await fileService.writeText(paths.mcpConfigPath, JSON.stringify(config, null, 2))
       return paths.mcpConfigPath
+    })
+  )
+
+  app.post(
+    '/api/mcps/test',
+    route(async (request) => {
+      const body = request.body as { name?: string; params?: Record<string, unknown> }
+      if (!body.name || !body.params) {
+        throw new Error('name and params are required')
+      }
+      const results = await probeMcpServers([{ name: body.name, params: body.params }])
+      return (
+        results.get(body.name) ?? {
+          status: 'error' as const,
+          tools: [],
+          error: 'Probe produced no result'
+        }
+      )
     })
   )
 

@@ -671,7 +671,7 @@ function Ensure-JanusLocalLayout {
 }
 
 function Get-JanusLocalInstances {
-    # Every Janus.exe process launched FROM the local install dir (service, local-webui, stray).
+    # Every Janus.exe process launched FROM the local install dir (service, run, stray).
     # Legacy WinSW wrappers (janus.exe under Program Files) never match this path.
     $exe = Join-Path (Get-JanusLocalRoot) 'Janus.exe'
     return @(Get-CimInstance Win32_Process -Filter "Name='Janus.exe'" -ErrorAction SilentlyContinue |

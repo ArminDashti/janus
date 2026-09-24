@@ -2,6 +2,7 @@ import type {
   AppSettings,
   AssignTarget,
   HookResource,
+  McpProbeResult,
   PlatformId,
   ProjectMatrixRow,
   ResourceGroupSummary,
@@ -60,6 +61,7 @@ export interface AgentManagerApi {
   ) => Promise<SkillResource | RuleResource | HookResource | SubAgentResource | ToolResource | null>
   deleteMcp: (name: string, configPath: string) => Promise<boolean>
   addMcp: (name: string, params: Record<string, unknown>) => Promise<string>
+  testMcp: (name: string, params: Record<string, unknown>) => Promise<McpProbeResult>
   addPlatform: (id: PlatformId, rootPath: string, projectDirName?: string) => Promise<AppSettings>
   addProjectRoot: (scanPath: string) => Promise<{ id: string; projects: unknown[] }>
   importProjects: (paths: string[]) => Promise<{ imported: number; projects: unknown[] }>

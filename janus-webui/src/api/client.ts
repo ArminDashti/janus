@@ -154,6 +154,12 @@ export const agentManagerClient: AgentManagerApi = {
       body: JSON.stringify({ name, params })
     }),
 
+  testMcp: (name, params) =>
+    request('/api/mcps/test', {
+      method: 'POST',
+      body: JSON.stringify({ name, params })
+    }),
+
   addPlatform: (id, rootPath, projectDirName) =>
     request<AppSettings>('/api/platforms', {
       method: 'POST',

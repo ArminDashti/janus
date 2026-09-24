@@ -55,6 +55,8 @@ export type ApiProviderId = 'openRouter'
 export interface AppSettings {
   window: { maximized: boolean }
   startup: { runOnLogin: boolean }
+  /** UI theme id, e.g. vscode-dark, github-dark, dracula. */
+  theme: string
   dataPath: string
   platforms: PlatformConfig[]
   projectRoots: ProjectRootConfig[]
@@ -125,8 +127,17 @@ export interface McpResource {
   params: Record<string, unknown>
   tools: McpTool[]
   status: 'connected' | 'disconnected' | 'unknown' | 'error' | 'configured'
+  /** Last probe failure detail; present when status is error/disconnected or transport is untestable. */
+  error?: string
   platforms: string[]
   configPath: string
+}
+
+/** Result of probing a single MCP server (scan-time or on-demand test). */
+export interface McpProbeResult {
+  status: McpResource['status']
+  tools: McpTool[]
+  error?: string
 }
 
 export interface HookDefinition {

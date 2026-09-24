@@ -345,9 +345,6 @@ function SkillContent({ skillName, summary }: SkillContentProps) {
         <p className="text-xs text-zinc-500 mt-0.5 truncate" title={resource.rootPath}>
           {resource.rootPath}
         </p>
-        {summary?.description && (
-          <p className="text-xs text-zinc-400 mt-1 line-clamp-2">{summary.description}</p>
-        )}
         {resource.structureWarning && (
           <p className="text-[11px] text-amber-400/90 mt-1">{resource.structureWarning}</p>
         )}

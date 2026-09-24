@@ -13,6 +13,7 @@ export function createDefaultSettings(): AppSettings {
   return {
     window: { maximized: true },
     startup: { runOnLogin: false },
+    theme: 'vscode-dark',
     dataPath: './data',
     platforms,
     projectRoots: [],

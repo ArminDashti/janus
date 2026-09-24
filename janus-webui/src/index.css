@@ -2,7 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
+/* ── Themes ────────────────────────────────────────────────────────────────
+   Every theme defines the same variable set. `:root` holds the default
+   (VS Code Dark+); [data-theme='…'] blocks override it. Values are RGB
+   triplets consumed by tailwind.config.js via rgb(var(…) / <alpha-value>).
+   Zinc scale roles: 950 app bg · 900 panel/sidebar · 800 raised/hover ·
+   700 border · 600 disabled fg · 500 muted · 400 secondary · 300–50 fg. */
+:root,
+[data-theme='vscode-dark'] {
   --dp-bg: #1e1e1e;
   --dp-sidebar: #252526;
   --dp-raised: #2d2d30;
@@ -12,6 +19,298 @@
   --dp-muted: #858585;
   --dp-accent: #007acc;
   --dp-selection: #094771;
+
+  --c-surface-app: 30 30 30;
+  --c-surface: 37 37 38;
+  --c-surface-raised: 45 45 48;
+  --c-surface-border: 62 62 66;
+  --c-surface-input: 60 60 60;
+  --c-accent: 0 122 204;
+  --c-accent-hover: 17 119 187;
+  --c-accent-muted: 9 71 113;
+  --c-accent-fg: 55 148 255;
+  --c-zinc-50: 243 243 243;
+  --c-zinc-100: 231 231 231;
+  --c-zinc-200: 212 212 212;
+  --c-zinc-300: 204 204 204;
+  --c-zinc-400: 157 157 157;
+  --c-zinc-500: 133 133 133;
+  --c-zinc-600: 106 106 106;
+  --c-zinc-700: 62 62 66;
+  --c-zinc-800: 45 45 48;
+  --c-zinc-900: 37 37 38;
+  --c-zinc-950: 30 30 30;
+  --c-blue-300: 117 190 255;
+  --c-blue-400: 55 148 255;
+  --c-blue-500: 14 99 156;
+  --c-blue-600: 0 122 204;
+  --c-blue-700: 0 90 158;
+}
+
+[data-theme='github-dark'] {
+  --dp-bg: #0d1117;
+  --dp-sidebar: #010409;
+  --dp-raised: #161b22;
+  --dp-border: #30363d;
+  --dp-input: #0d1117;
+  --dp-fg: #e6edf3;
+  --dp-muted: #8b949e;
+  --dp-accent: #1f6feb;
+  --dp-selection: #043786;
+
+  --c-surface-app: 13 17 23;
+  --c-surface: 22 27 34;
+  --c-surface-raised: 33 38 45;
+  --c-surface-border: 48 54 61;
+  --c-surface-input: 13 17 23;
+  --c-accent: 31 111 235;
+  --c-accent-hover: 56 139 253;
+  --c-accent-muted: 4 55 134;
+  --c-accent-fg: 88 166 255;
+  --c-zinc-50: 246 248 250;
+  --c-zinc-100: 230 237 243;
+  --c-zinc-200: 201 209 217;
+  --c-zinc-300: 177 186 196;
+  --c-zinc-400: 139 148 158;
+  --c-zinc-500: 110 118 129;
+  --c-zinc-600: 72 79 88;
+  --c-zinc-700: 48 54 61;
+  --c-zinc-800: 33 38 45;
+  --c-zinc-900: 22 27 34;
+  --c-zinc-950: 13 17 23;
+  --c-blue-300: 121 192 255;
+  --c-blue-400: 88 166 255;
+  --c-blue-500: 56 139 253;
+  --c-blue-600: 31 111 235;
+  --c-blue-700: 13 65 157;
+}
+
+[data-theme='github-light'] {
+  --dp-bg: #ffffff;
+  --dp-sidebar: #f6f8fa;
+  --dp-raised: #eaeef2;
+  --dp-border: #d0d7de;
+  --dp-input: #ffffff;
+  --dp-fg: #1f2328;
+  --dp-muted: #6e7781;
+  --dp-accent: #0969da;
+  --dp-selection: #ddf4ff;
+
+  --c-surface-app: 255 255 255;
+  --c-surface: 246 248 250;
+  --c-surface-raised: 234 238 242;
+  --c-surface-border: 208 215 222;
+  --c-surface-input: 255 255 255;
+  --c-accent: 9 105 218;
+  --c-accent-hover: 47 129 247;
+  --c-accent-muted: 221 244 255;
+  --c-accent-fg: 9 105 218;
+  --c-zinc-50: 31 35 40;
+  --c-zinc-100: 31 35 40;
+  --c-zinc-200: 36 41 47;
+  --c-zinc-300: 66 74 83;
+  --c-zinc-400: 87 96 106;
+  --c-zinc-500: 110 119 129;
+  --c-zinc-600: 175 184 193;
+  --c-zinc-700: 208 215 222;
+  --c-zinc-800: 234 238 242;
+  --c-zinc-900: 246 248 250;
+  --c-zinc-950: 255 255 255;
+  --c-blue-300: 68 147 248;
+  --c-blue-400: 9 105 218;
+  --c-blue-500: 5 80 174;
+  --c-blue-600: 9 105 218;
+  --c-blue-700: 5 80 174;
+}
+
+[data-theme='dracula'] {
+  --dp-bg: #282a36;
+  --dp-sidebar: #21222c;
+  --dp-raised: #34364c;
+  --dp-border: #44475a;
+  --dp-input: #21222c;
+  --dp-fg: #f8f8f2;
+  --dp-muted: #6272a4;
+  --dp-accent: #bd93f9;
+  --dp-selection: #44475a;
+
+  --c-surface-app: 40 42 54;
+  --c-surface: 33 34 44;
+  --c-surface-raised: 52 54 72;
+  --c-surface-border: 68 71 90;
+  --c-surface-input: 33 34 44;
+  --c-accent: 189 147 249;
+  --c-accent-hover: 211 166 255;
+  --c-accent-muted: 68 71 90;
+  --c-accent-fg: 189 147 249;
+  --c-zinc-50: 255 255 255;
+  --c-zinc-100: 248 248 242;
+  --c-zinc-200: 226 227 242;
+  --c-zinc-300: 200 203 227;
+  --c-zinc-400: 163 168 204;
+  --c-zinc-500: 98 114 164;
+  --c-zinc-600: 77 81 112;
+  --c-zinc-700: 68 71 90;
+  --c-zinc-800: 52 54 72;
+  --c-zinc-900: 33 34 44;
+  --c-zinc-950: 40 42 54;
+  --c-blue-300: 165 180 252;
+  --c-blue-400: 129 140 248;
+  --c-blue-500: 99 102 241;
+  --c-blue-600: 79 70 229;
+  --c-blue-700: 67 56 202;
+}
+
+[data-theme='monokai'] {
+  --dp-bg: #272822;
+  --dp-sidebar: #1e1f1a;
+  --dp-raised: #32332a;
+  --dp-border: #45463a;
+  --dp-input: #1e1f1a;
+  --dp-fg: #f8f8f2;
+  --dp-muted: #75715e;
+  --dp-accent: #66d9ef;
+  --dp-selection: #49483e;
+
+  --c-surface-app: 39 40 34;
+  --c-surface: 30 31 26;
+  --c-surface-raised: 50 51 42;
+  --c-surface-border: 69 70 58;
+  --c-surface-input: 30 31 26;
+  --c-accent: 30 127 194;
+  --c-accent-hover: 41 161 247;
+  --c-accent-muted: 73 72 62;
+  --c-accent-fg: 102 217 239;
+  --c-zinc-50: 255 255 255;
+  --c-zinc-100: 248 248 242;
+  --c-zinc-200: 224 223 212;
+  --c-zinc-300: 201 199 180;
+  --c-zinc-400: 158 156 138;
+  --c-zinc-500: 117 113 94;
+  --c-zinc-600: 107 108 94;
+  --c-zinc-700: 69 70 58;
+  --c-zinc-800: 50 51 42;
+  --c-zinc-900: 30 31 26;
+  --c-zinc-950: 39 40 34;
+  --c-blue-300: 168 236 250;
+  --c-blue-400: 102 217 239;
+  --c-blue-500: 41 161 247;
+  --c-blue-600: 30 127 194;
+  --c-blue-700: 20 96 143;
+}
+
+[data-theme='one-dark'] {
+  --dp-bg: #282c34;
+  --dp-sidebar: #21252b;
+  --dp-raised: #2c313a;
+  --dp-border: #3a3f4b;
+  --dp-input: #21252b;
+  --dp-fg: #abb2bf;
+  --dp-muted: #5c6370;
+  --dp-accent: #61afef;
+  --dp-selection: #3e4451;
+
+  --c-surface-app: 40 44 52;
+  --c-surface: 33 37 43;
+  --c-surface-raised: 44 49 58;
+  --c-surface-border: 58 63 75;
+  --c-surface-input: 33 37 43;
+  --c-accent: 44 114 199;
+  --c-accent-hover: 74 144 226;
+  --c-accent-muted: 62 68 81;
+  --c-accent-fg: 97 175 239;
+  --c-zinc-50: 242 244 248;
+  --c-zinc-100: 226 230 238;
+  --c-zinc-200: 200 205 215;
+  --c-zinc-300: 171 178 191;
+  --c-zinc-400: 130 138 153;
+  --c-zinc-500: 92 99 112;
+  --c-zinc-600: 75 82 99;
+  --c-zinc-700: 58 63 75;
+  --c-zinc-800: 44 49 58;
+  --c-zinc-900: 33 37 43;
+  --c-zinc-950: 40 44 52;
+  --c-blue-300: 140 200 245;
+  --c-blue-400: 97 175 239;
+  --c-blue-500: 74 144 226;
+  --c-blue-600: 44 114 199;
+  --c-blue-700: 31 86 153;
+}
+
+[data-theme='nord'] {
+  --dp-bg: #2e3440;
+  --dp-sidebar: #3b4252;
+  --dp-raised: #434c5e;
+  --dp-border: #4c566a;
+  --dp-input: #3b4252;
+  --dp-fg: #eceff4;
+  --dp-muted: #616e88;
+  --dp-accent: #5e81ac;
+  --dp-selection: #434c5e;
+
+  --c-surface-app: 46 52 64;
+  --c-surface: 59 66 82;
+  --c-surface-raised: 67 76 94;
+  --c-surface-border: 76 86 106;
+  --c-surface-input: 59 66 82;
+  --c-accent: 76 103 146;
+  --c-accent-hover: 94 129 172;
+  --c-accent-muted: 67 76 94;
+  --c-accent-fg: 136 192 208;
+  --c-zinc-50: 248 250 252;
+  --c-zinc-100: 236 239 244;
+  --c-zinc-200: 223 228 238;
+  --c-zinc-300: 197 206 222;
+  --c-zinc-400: 154 165 188;
+  --c-zinc-500: 108 120 145;
+  --c-zinc-600: 92 103 127;
+  --c-zinc-700: 76 86 106;
+  --c-zinc-800: 67 76 94;
+  --c-zinc-900: 59 66 82;
+  --c-zinc-950: 46 52 64;
+  --c-blue-300: 143 188 187;
+  --c-blue-400: 136 192 208;
+  --c-blue-500: 94 129 172;
+  --c-blue-600: 76 103 146;
+  --c-blue-700: 59 83 120;
+}
+
+[data-theme='catppuccin-mocha'] {
+  --dp-bg: #1e1e2e;
+  --dp-sidebar: #181825;
+  --dp-raised: #313244;
+  --dp-border: #45475a;
+  --dp-input: #181825;
+  --dp-fg: #cdd6f4;
+  --dp-muted: #6c7086;
+  --dp-accent: #89b4fa;
+  --dp-selection: #45475a;
+
+  --c-surface-app: 30 30 46;
+  --c-surface: 24 24 37;
+  --c-surface-raised: 49 50 68;
+  --c-surface-border: 69 71 90;
+  --c-surface-input: 24 24 37;
+  --c-accent: 30 102 245;
+  --c-accent-hover: 69 137 224;
+  --c-accent-muted: 69 71 90;
+  --c-accent-fg: 137 180 250;
+  --c-zinc-50: 239 241 245;
+  --c-zinc-100: 205 214 244;
+  --c-zinc-200: 186 194 222;
+  --c-zinc-300: 166 173 200;
+  --c-zinc-400: 127 132 156;
+  --c-zinc-500: 108 112 134;
+  --c-zinc-600: 88 91 112;
+  --c-zinc-700: 69 71 90;
+  --c-zinc-800: 49 50 68;
+  --c-zinc-900: 24 24 37;
+  --c-zinc-950: 30 30 46;
+  --c-blue-300: 137 220 235;
+  --c-blue-400: 137 180 250;
+  --c-blue-500: 59 124 232;
+  --c-blue-600: 30 102 245;
+  --c-blue-700: 23 78 166;
 }
 
 * {

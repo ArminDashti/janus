@@ -23,12 +23,13 @@ import { SettingsPage } from '@renderer/pages/SettingsPage'
 import { AboutPage } from '@renderer/pages/AboutPage'
 import { InstructionsPage } from '@renderer/pages/InstructionsPage'
 import { MessageModal } from '@renderer/components/MessageModal'
+import { applyTheme } from '@renderer/lib/themes'
 
 
 
 export default function App() {
 
-  const { page, setPage, loadSettings, refreshScan } = useAppStore()
+  const { page, setPage, loadSettings, refreshScan, settings } = useAppStore()
 
   const scanTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -65,6 +66,14 @@ export default function App() {
     }
 
   }, [loadSettings, refreshScan])
+
+
+
+  useEffect(() => {
+
+    if (settings?.theme) applyTheme(settings.theme)
+
+  }, [settings?.theme])
 
 
 

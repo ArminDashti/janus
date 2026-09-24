@@ -1,4 +1,6 @@
 /** @type {import('tailwindcss').Config} */
+// Colors are RGB-triplet CSS variables (defined per theme in index.css under
+// [data-theme=...]) so themes switch at runtime without a rebuild.
 export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
@@ -7,40 +9,40 @@ export default {
         sans: ['Segoe UI', 'Consolas', 'system-ui', '-apple-system', 'sans-serif']
       },
       colors: {
-        // VS Code Dark+ surfaces
+        // Surfaces (VS Code Dark+ names kept; values come from CSS variables)
         surface: {
-          app: '#1E1E1E',
-          DEFAULT: '#252526',
-          raised: '#2D2D30',
-          border: '#3E3E42',
-          input: '#3C3C3C'
+          app: 'rgb(var(--c-surface-app) / <alpha-value>)',
+          DEFAULT: 'rgb(var(--c-surface) / <alpha-value>)',
+          raised: 'rgb(var(--c-surface-raised) / <alpha-value>)',
+          border: 'rgb(var(--c-surface-border) / <alpha-value>)',
+          input: 'rgb(var(--c-surface-input) / <alpha-value>)'
         },
         accent: {
-          DEFAULT: '#007ACC',
-          hover: '#1177BB',
-          muted: '#094771',
-          fg: '#3794FF'
+          DEFAULT: 'rgb(var(--c-accent) / <alpha-value>)',
+          hover: 'rgb(var(--c-accent-hover) / <alpha-value>)',
+          muted: 'rgb(var(--c-accent-muted) / <alpha-value>)',
+          fg: 'rgb(var(--c-accent-fg) / <alpha-value>)'
         },
-        // Remap zinc scale toward Dark+ so existing classes pick up the theme
+        // Remapped zinc scale so existing classes pick up the active theme
         zinc: {
-          50: '#F3F3F3',
-          100: '#E7E7E7',
-          200: '#D4D4D4',
-          300: '#CCCCCC',
-          400: '#9D9D9D',
-          500: '#858585',
-          600: '#6A6A6A',
-          700: '#3E3E42',
-          800: '#2D2D30',
-          900: '#252526',
-          950: '#1E1E1E'
+          50: 'rgb(var(--c-zinc-50) / <alpha-value>)',
+          100: 'rgb(var(--c-zinc-100) / <alpha-value>)',
+          200: 'rgb(var(--c-zinc-200) / <alpha-value>)',
+          300: 'rgb(var(--c-zinc-300) / <alpha-value>)',
+          400: 'rgb(var(--c-zinc-400) / <alpha-value>)',
+          500: 'rgb(var(--c-zinc-500) / <alpha-value>)',
+          600: 'rgb(var(--c-zinc-600) / <alpha-value>)',
+          700: 'rgb(var(--c-zinc-700) / <alpha-value>)',
+          800: 'rgb(var(--c-zinc-800) / <alpha-value>)',
+          900: 'rgb(var(--c-zinc-900) / <alpha-value>)',
+          950: 'rgb(var(--c-zinc-950) / <alpha-value>)'
         },
         blue: {
-          300: '#75BEFF',
-          400: '#3794FF',
-          500: '#0E639C',
-          600: '#007ACC',
-          700: '#005A9E'
+          300: 'rgb(var(--c-blue-300) / <alpha-value>)',
+          400: 'rgb(var(--c-blue-400) / <alpha-value>)',
+          500: 'rgb(var(--c-blue-500) / <alpha-value>)',
+          600: 'rgb(var(--c-blue-600) / <alpha-value>)',
+          700: 'rgb(var(--c-blue-700) / <alpha-value>)'
         }
       }
     }

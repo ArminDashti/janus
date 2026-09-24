@@ -8,6 +8,7 @@ const MAX_CONCURRENT = 3
 interface ProbeResult {
   status: McpResource['status']
   tools: McpTool[]
+  error?: string
 }
 
 function hasStdioTransport(params: Record<string, unknown>): boolean {
@@ -34,8 +35,12 @@ async function probeStdioMcp(params: Record<string, unknown>): Promise<ProbeResu
   return new Promise((resolve) => {
     let settled = false
     let buffer = ''
+    let stderrTail = ''
     let initDone = false
     const tools: McpTool[] = []
+
+    const stderrSuffix = (): string =>
+      stderrTail.trim() ? ` — stderr: ${stderrTail.trim()}` : ''
 
     const finish = (result: ProbeResult) => {
       if (settled) return
@@ -52,10 +57,24 @@ async function probeStdioMcp(params: Record<string, unknown>): Promise<ProbeResu
     })
 
     const timer = setTimeout(() => {
-      finish({ status: 'disconnected', tools: [] })
+      finish({
+        status: 'disconnected',
+        tools: [],
+        error: `Timed out after ${PROBE_TIMEOUT_MS}ms waiting for MCP response${stderrSuffix()}`
+      })
     }, PROBE_TIMEOUT_MS)
 
-    proc.on('error', () => finish({ status: 'error', tools: [] }))
+    proc.on('error', (err) => finish({ status: 'error', tools: [], error: err.message }))
+
+    proc.on('exit', (code, signal) => {
+      finish({
+        status: 'disconnected',
+        tools: [],
+        error:
+          `Process exited before responding (code ${code ?? 'null'}` +
+          `${signal ? `, signal ${signal}` : ''})${stderrSuffix()}`
+      })
+    })
 
     proc.stdout?.on('data', (chunk: Buffer) => {
       buffer += chunk.toString()
@@ -69,10 +88,12 @@ async function probeStdioMcp(params: Record<string, unknown>): Promise<ProbeResu
           const msg = JSON.parse(trimmed) as {
             id?: number
             result?: { tools?: Array<{ name?: string; description?: string }> }
-            error?: unknown
+            error?: { code?: number; message?: string }
           }
           if (msg.error) {
-            finish({ status: 'error', tools: [] })
+            const detail = msg.error.message ?? JSON.stringify(msg.error)
+            const code = msg.error.code !== undefined ? ` (${msg.error.code})` : ''
+            finish({ status: 'error', tools: [], error: `MCP error${code}: ${detail}` })
             return
           }
           if (msg.id === 1 && !initDone) {
@@ -91,8 +112,9 @@ async function probeStdioMcp(params: Record<string, unknown>): Promise<ProbeResu
       }
     })
 
-    proc.stderr?.on('data', () => {
-      // stderr output alone does not fail probe
+    proc.stderr?.on('data', (chunk: Buffer) => {
+      // Keep a bounded tail so probe failures can surface why the server died
+      stderrTail = (stderrTail + chunk.toString()).slice(-500)
     })
 
     sendJsonRpc(proc, 1, 'initialize', {
@@ -141,7 +163,11 @@ export async function probeMcpServers(
     if (!hasStdioTransport(server.params)) {
       return {
         name: server.name,
-        result: { status: 'configured' as const, tools: [] as McpTool[] }
+        result: {
+          status: 'configured' as const,
+          tools: [] as McpTool[],
+          error: 'Unsupported transport: only stdio MCP servers can be probed'
+        }
       }
     }
     const result = await probeStdioMcp(server.params)
