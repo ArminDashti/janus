@@ -112,6 +112,12 @@ export const agentManagerClient: AgentManagerApi = {
       body: JSON.stringify({ assignedProjectIds })
     }),
 
+  setGlobalAssignment: (resourceType, resourceName, platformId, assigned) =>
+    request<boolean>(`/api/resources/${resourceType}/${encodeURIComponent(resourceName)}/global-assign`, {
+      method: 'POST',
+      body: JSON.stringify({ platformId, assigned })
+    }),
+
   applyAllToAllProjects: (resourceType) =>
     request<number>(`/api/resources/${resourceType}/assign-all`, {
       method: 'POST'

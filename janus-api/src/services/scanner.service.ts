@@ -10,8 +10,7 @@ import type {
   RuleResource,
   ScanResult,
   SkillResource,
-  SubAgentResource,
-  ToolResource
+  SubAgentResource
 } from '../shared/types'
 import {
   parseFrontmatter,
@@ -34,9 +33,11 @@ import { agentDebugLog } from './debug-log'
 import { seedSkillContentHashes } from './skill-sync.service'
 import { reconcileSharedUuids } from './uuid-reconcile.service'
 
-const PLATFORM_SCAN_TYPES: ResourceType[] = ['mcp', 'tool']
-/** Skills / hooks / sub-agents under ~/.cursor (Cursor platform root only). */
-const CURSOR_GLOBAL_SCAN_TYPES: ResourceType[] = ['skill', 'hook', 'subAgent']
+const PLATFORM_SCAN_TYPES: ResourceType[] = ['mcp']
+/** Global skills + rules under each enabled platform root (rootPath/skills, rootPath/rules). */
+const GLOBAL_SCAN_TYPES: ResourceType[] = ['skill', 'rule']
+/** Cursor root (~/.cursor) additionally hosts hooks and sub-agents. */
+const CURSOR_GLOBAL_SCAN_TYPES: ResourceType[] = ['skill', 'rule', 'hook', 'subAgent']
 
 export interface ScanAllOptions {
   /** Spawn MCP processes to check connectivity. Expensive; default false. */
@@ -92,8 +93,7 @@ export class ScannerService {
       rules: [],
       mcps: [],
       hooks: [],
-      subAgents: [],
-      tools: []
+      subAgents: []
     }
 
     for (const platform of settings.platforms) {
@@ -111,22 +111,21 @@ export class ScannerService {
       // MCPs / tools from the platform root (all platforms)
       await this.scanPaths(adapter, paths, source, settings, result, PLATFORM_SCAN_TYPES)
 
-      // Global Skills / Hooks / Sub-agents: Cursor ~/.cursor only.
-      // Skills load exclusively from ~/.cursor/skills (not skills-cursor).
-      if (platform.id === 'cursor') {
-        const globalPaths: PlatformPaths = {
-          ...paths,
-          skillsDirs: [join(platform.rootPath, 'skills')]
-        }
-        await this.scanPaths(
-          adapter,
-          globalPaths,
-          source,
-          settings,
-          result,
-          CURSOR_GLOBAL_SCAN_TYPES
-        )
-      }
+      // Global Skills / Rules from every enabled platform root (surface as "<Name> (Global)"
+      // rows in the Projects panel). Cursor root also hosts hooks and sub-agents; its skills
+      // load exclusively from ~/.cursor/skills (not skills-cursor).
+      const isCursor = platform.id === 'cursor'
+      const globalPaths: PlatformPaths = isCursor
+        ? { ...paths, skillsDirs: [join(platform.rootPath, 'skills')] }
+        : paths
+      await this.scanPaths(
+        adapter,
+        globalPaths,
+        source,
+        settings,
+        result,
+        isCursor ? CURSOR_GLOBAL_SCAN_TYPES : GLOBAL_SCAN_TYPES
+      )
     }
 
     for (const root of settings.projectRoots) {
@@ -158,7 +157,6 @@ export class ScannerService {
       mcps: result.mcps.length,
       hooks: result.hooks.length,
       subAgents: result.subAgents.length,
-      tools: result.tools.length,
       probeMcps
     })
     // #endregion
@@ -189,6 +187,7 @@ export class ScannerService {
   private async probeMcps(result: ScanResult): Promise<void> {
     const unique = new Map<string, Record<string, unknown>>()
     for (const mcp of result.mcps) {
+      if (!mcp.enabled) continue
       if (!unique.has(mcp.name)) unique.set(mcp.name, mcp.params)
     }
 
@@ -319,7 +318,8 @@ export class ScannerService {
             tools: [],
             status: 'unknown',
             platforms: [source.id],
-            configPath: paths.mcpConfigPath
+            configPath: paths.mcpConfigPath,
+            enabled: settings.mcpEnabled?.[name] ?? true
           })
         }
       } catch {
@@ -398,40 +398,6 @@ export class ScannerService {
           structureWarning: structure.ok ? undefined : structure.reason,
           source,
           enabled: settings.assignments.subAgents[id]?.includes(source.id) ?? true
-        })
-      }
-    }
-
-    if (canScan('tool') && supportsResource(adapter, 'tool') && existsSync(paths.toolsDir)) {
-      const dirs = await fileService.listDirectories(paths.toolsDir)
-      for (const dir of dirs) {
-        const files = await fileService.listFilesRecursive(dir)
-        let description: string | undefined
-        let entrypoint: string | undefined
-        const toolJson = join(dir, 'tool.json')
-        if (existsSync(toolJson)) {
-          try {
-            const meta = JSON.parse(await fileService.readText(toolJson)) as {
-              name?: string
-              description?: string
-              entrypoint?: string
-            }
-            description = meta.description
-            entrypoint = meta.entrypoint
-          } catch {
-            // ignore
-          }
-        }
-        const id = stableId(source.id, dir)
-        result.tools.push({
-          id,
-          name: basename(dir),
-          description,
-          rootPath: dir,
-          entrypoint,
-          files,
-          source,
-          enabled: settings.assignments.tools[id]?.includes(source.id) ?? true
         })
       }
     }

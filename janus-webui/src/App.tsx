@@ -14,8 +14,6 @@ import { SubAgentsPage } from '@renderer/pages/SubAgentsPage'
 
 import { McpsPage } from '@renderer/pages/McpsPage'
 
-import { ToolsPage } from '@renderer/pages/ToolsPage'
-
 import { RepositoriesPage } from '@renderer/pages/RepositoriesPage'
 
 import { SettingsPage } from '@renderer/pages/SettingsPage'
@@ -24,6 +22,8 @@ import { AboutPage } from '@renderer/pages/AboutPage'
 import { InstructionsPage } from '@renderer/pages/InstructionsPage'
 import { MessageModal } from '@renderer/components/MessageModal'
 import { applyTheme } from '@renderer/lib/themes'
+
+import { applyFont } from '@renderer/lib/fonts'
 
 
 
@@ -77,6 +77,42 @@ export default function App() {
 
 
 
+  useEffect(() => {
+
+    if (!settings?.font) return
+
+    let font = settings.font
+
+    try {
+
+      // One-time: installs predating Inter stored the old default ('Segoe UI').
+
+      if (!localStorage.getItem('janus-settings-font-migrated')) {
+
+        localStorage.setItem('janus-settings-font-migrated', '1')
+
+        if (font === 'Segoe UI') {
+
+          font = 'Inter'
+
+          void window.agentManager.saveSettings({ ...settings, font }).then(() => loadSettings())
+
+        }
+
+      }
+
+    } catch {
+
+      // storage unavailable — apply the current font for this session
+
+    }
+
+    applyFont(font)
+
+  }, [settings, loadSettings])
+
+
+
   const content = (() => {
 
     switch (page) {
@@ -100,10 +136,6 @@ export default function App() {
       case 'mcps':
 
         return <McpsPage />
-
-      case 'tools':
-
-        return <ToolsPage />
 
       case 'repositories':
 

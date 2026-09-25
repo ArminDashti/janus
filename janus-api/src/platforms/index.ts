@@ -9,8 +9,8 @@ function makeAdapter(
   extraSkillsDir?: string
 ): PlatformAdapter {
   const supportedResources: PlatformAdapter['supportedResources'] = hooksAndAgents
-    ? ['skill', 'rule', 'mcp', 'hook', 'subAgent', 'tool']
-    : ['skill', 'rule', 'mcp', 'tool']
+    ? ['skill', 'rule', 'mcp', 'hook', 'subAgent']
+    : ['skill', 'rule', 'mcp']
 
   return {
     id,
@@ -35,13 +35,21 @@ export const antigravityAdapter = makeAdapter('antigravity', 'Antigravity', fals
 export const devinAdapter = makeAdapter('devin', 'Devin', false)
 export const opencodeAdapter = makeAdapter('opencode', 'OpenCode', false)
 export const kiloAdapter = makeAdapter('kilo', 'Kilo', false)
+export const zcodeAdapter = makeAdapter('zcode', 'ZCode', false)
+export const hermesAdapter = makeAdapter('hermes', 'Hermes', false)
+export const grokAdapter = makeAdapter('grok', 'Grok', false)
+export const kiroAdapter = makeAdapter('kiro', 'Kiro', false)
 
 export const allAdapters = [
   antigravityAdapter,
   cursorAdapter,
   devinAdapter,
+  grokAdapter,
+  hermesAdapter,
   kiloAdapter,
-  opencodeAdapter
+  kiroAdapter,
+  opencodeAdapter,
+  zcodeAdapter
 ]
 
 export function getAdapter(id: string): PlatformAdapter | undefined {

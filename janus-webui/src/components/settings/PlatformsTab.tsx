@@ -8,6 +8,7 @@ import {
   PLATFORM_LABELS
 } from '@shared/types'
 import { PlatformLogo } from '@renderer/components/PlatformLogo'
+import { Toggle } from '@renderer/components/Toggle'
 import { cn } from '@renderer/lib/utils'
 import { useAppStore } from '@renderer/stores/appStore'
 import { showMessage } from '@renderer/stores/messageStore'
@@ -32,37 +33,6 @@ function ensurePlatforms(settings: AppSettings): PlatformConfig[] {
   })
 }
 
-function Switch({
-  checked,
-  onChange,
-  label
-}: {
-  checked: boolean
-  onChange: (checked: boolean) => void
-  label: string
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      onClick={() => onChange(!checked)}
-      className={cn(
-        'relative h-5 w-9 rounded-full transition-colors shrink-0',
-        checked ? 'bg-blue-600' : 'bg-zinc-600'
-      )}
-    >
-      <span
-        className={cn(
-          'absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform',
-          checked ? 'translate-x-4' : 'translate-x-0.5'
-        )}
-      />
-    </button>
-  )
-}
-
 export function PlatformsTab({ settings, onChange }: PlatformsTabProps) {
   const { loadSettings } = useAppStore()
   const seeded = useMemo(() => ensurePlatforms(settings), [settings])
@@ -81,7 +51,7 @@ export function PlatformsTab({ settings, onChange }: PlatformsTabProps) {
 
   const savePlatforms = async () => {
     const confirmed = await showMessage({
-      message: 'Save platform settings?',
+      message: 'Save IDE/CLI settings?',
       confirm: true
     })
     if (!confirmed) return
@@ -114,14 +84,14 @@ export function PlatformsTab({ settings, onChange }: PlatformsTabProps) {
     await window.agentManager.saveSettings(next)
     onChange(next)
     await loadSettings()
-    await showMessage({ message: 'Platform settings saved', type: 'success' })
+    await showMessage({ message: 'IDE/CLI settings saved', type: 'success' })
   }
 
   return (
     <div className="space-y-6 pb-6">
       <div className="flex items-start justify-between gap-6">
         <p className="text-xs text-zinc-500 max-w-2xl">
-          Enable platforms and set each global folder (user home config) and the folder name used
+          Enable IDE/CLIs and set each global folder (user home config) and the folder name used
           inside projects.
         </p>
         <button
@@ -129,7 +99,7 @@ export function PlatformsTab({ settings, onChange }: PlatformsTabProps) {
           onClick={() => void savePlatforms()}
           className="px-4 py-2 text-sm bg-emerald-700 rounded shrink-0"
         >
-          Save platform settings
+          Save IDE/CLI settings
         </button>
       </div>
 
@@ -169,10 +139,10 @@ export function PlatformsTab({ settings, onChange }: PlatformsTabProps) {
               >
                 {platform.enabled ? 'Enabled' : 'Disabled'}
               </span>
-              <Switch
+              <Toggle
                 checked={platform.enabled}
                 onChange={(checked) => updatePlatform(platform.id, { enabled: checked })}
-                label={`${PLATFORM_LABELS[platform.id]} enabled`}
+                ariaLabel={`${PLATFORM_LABELS[platform.id]} enabled`}
               />
             </div>
 

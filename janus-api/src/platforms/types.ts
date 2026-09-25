@@ -9,7 +9,6 @@ export interface PlatformPaths {
   hooksConfigPath: string
   hooksScriptsDir: string
   agentsDir: string
-  toolsDir: string
 }
 
 export interface PlatformAdapter {
@@ -36,8 +35,7 @@ export function createBasePaths(root: string, hooksAndAgents: boolean): Platform
     mcpConfigPath: joinPath(root, 'mcp.json'),
     hooksConfigPath: joinPath(root, 'hooks.json'),
     hooksScriptsDir: joinPath(root, 'hooks'),
-    agentsDir: joinPath(root, 'agents'),
-    toolsDir: joinPath(root, 'tools')
+    agentsDir: joinPath(root, 'agents')
   }
 
   if (!hooksAndAgents) {

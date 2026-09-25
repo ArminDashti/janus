@@ -14,7 +14,7 @@ import { fileService } from '../services/file.service'
 import { importedProjectsStore } from '../services/imported-projects-store'
 import { platformCleanupService } from '../services/platform-cleanup.service'
 import { probeMcpServers } from '../services/mcp-probe.service'
-import { syncEnabledPlatformsToProjects } from '../services/platform-sync.service'
+import { applyMcpEnableCascade, syncEnabledPlatformsToProjects } from '../services/platform-sync.service'
 import { projectBootstrapService } from '../services/project-bootstrap.service'
 import { resourceService } from '../services/resource.service'
 import { scannerService } from '../services/scanner.service'
@@ -27,14 +27,8 @@ import { refactorWithActiveApi } from '../services/api-refactor.service'
 type NonMcpResourceType = Exclude<ResourceType, 'mcp'>
 type CreatableResourceType = 'skill' | 'rule' | 'hook' | 'subAgent'
 
-const RESOURCE_TYPES = new Set<ResourceType>(['skill', 'rule', 'mcp', 'hook', 'subAgent', 'tool'])
-const NON_MCP_RESOURCE_TYPES = new Set<NonMcpResourceType>([
-  'skill',
-  'rule',
-  'hook',
-  'subAgent',
-  'tool'
-])
+const RESOURCE_TYPES = new Set<ResourceType>(['skill', 'rule', 'mcp', 'hook', 'subAgent'])
+const NON_MCP_RESOURCE_TYPES = new Set<NonMcpResourceType>(['skill', 'rule', 'hook', 'subAgent'])
 const CREATABLE_RESOURCE_TYPES = new Set<CreatableResourceType>(['skill', 'rule', 'hook', 'subAgent'])
 
 function isResourceType(value: string): value is ResourceType {
@@ -93,6 +87,16 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       const previous = settingsStore.get()
       const platformsChanged =
         JSON.stringify(previous.platforms) !== JSON.stringify(settings.platforms)
+
+      if (platformsChanged) {
+        // Enabling an IDE/CLI enables its MCPs; disabling turns them off (unless another
+        // enabled IDE/CLI declares the same server).
+        settings.mcpEnabled = await applyMcpEnableCascade(
+          previous.platforms,
+          settings.platforms,
+          settings.mcpEnabled ?? {}
+        )
+      }
 
       settingsStore.save(settings)
       applyStartupSetting(settings.startup?.runOnLogin ?? false)
@@ -356,6 +360,32 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   )
 
   app.post(
+    '/api/resources/:resourceType/:resourceName/global-assign',
+    route(async (request) => {
+      const { resourceType, resourceName } = request.params as {
+        resourceType: string
+        resourceName: string
+      }
+      if (!isNonMcpResourceType(resourceType)) {
+        throw new Error(`Invalid resource type: ${resourceType}`)
+      }
+
+      const body = request.body as { platformId?: string; assigned?: boolean }
+      if (!body.platformId || body.assigned === undefined) {
+        throw new Error('platformId and assigned are required')
+      }
+
+      await resourceService.applyGlobalAssignment(
+        resourceType,
+        resourceName,
+        body.platformId as PlatformId,
+        body.assigned
+      )
+      return true
+    })
+  )
+
+  app.post(
     '/api/resources/:resourceType/:resourceName/mandatory',
     route(async (request) => {
       const { resourceType, resourceName } = request.params as {
@@ -446,7 +476,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         settings.platforms.find((p) => p.enabled && p.id === 'cursor') ??
         settings.platforms.find((p) => p.enabled)
       if (!platform) {
-        throw new Error('No enabled platform')
+        throw new Error('No enabled IDE/CLI')
       }
 
       const adapter = getAdapter(platform.id)

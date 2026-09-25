@@ -5,11 +5,11 @@ import type {
   AppSettings,
   AssignTarget,
   HookResource,
+  PlatformId,
   ResourceType,
   RuleResource,
   SkillResource,
-  SubAgentResource,
-  ToolResource
+  SubAgentResource
 } from '../shared/types'
 import { CURSOR_ONLY_RESOURCES, PROJECT_ONLY_RESOURCES } from '../shared/types'
 import { ruleBaseName, ruleFileNameForPlatform } from '../shared/rule-names'
@@ -23,7 +23,6 @@ type ScannedResource =
   | RuleResource
   | HookResource
   | SubAgentResource
-  | ToolResource
 
 export class AssignmentService {
   getTargets(settings: AppSettings, resourceType: ResourceType): AssignTarget[] {
@@ -128,9 +127,6 @@ export class AssignmentService {
           await fileService.removePath(join(paths.rulesDir, `${base}.md`))
           break
         }
-        case 'tool':
-          await fileService.removePath(join(paths.toolsDir, resourceName))
-          break
         case 'subAgent': {
           const agentsDir = paths.agentsDir
           if (!agentsDir) break
@@ -179,6 +175,54 @@ export class AssignmentService {
     }
   }
 
+  /** Copy a skill/rule into an IDE/CLI global folder (rootPath/skills | rootPath/rules). */
+  async assignToPlatformGlobal(
+    resource: ScannedResource,
+    resourceType: ResourceType,
+    platformId: PlatformId
+  ): Promise<void> {
+    if (resourceType !== 'skill' && resourceType !== 'rule') {
+      throw new Error('Only skills and rules can be assigned to an IDE/CLI global folder')
+    }
+    const settings = settingsStore.get()
+    const platform = settings.platforms.find((p) => p.id === platformId && p.enabled)
+    if (!platform) throw new Error('IDE/CLI is not enabled')
+    const adapter = getAdapter(platformId)
+    if (!adapter) throw new Error('IDE/CLI adapter not found')
+    const target: AssignTarget = {
+      type: 'platform',
+      id: platform.id,
+      label: adapter.label,
+      platformId
+    }
+    await this.assignResource(resource, resourceType, target)
+  }
+
+  /** Remove a skill/rule from an IDE/CLI global folder. */
+  async unassignFromPlatformGlobal(
+    resourceName: string,
+    resourceType: ResourceType,
+    platformId: PlatformId
+  ): Promise<void> {
+    if (resourceType !== 'skill' && resourceType !== 'rule') {
+      throw new Error('Only skills and rules can be unassigned from an IDE/CLI global folder')
+    }
+    const settings = settingsStore.get()
+    const platform = settings.platforms.find((p) => p.id === platformId)
+    if (!platform) return
+    const adapter = getAdapter(platformId)
+    if (!adapter) return
+    const paths = adapter.getPlatformPaths(platform.rootPath)
+
+    if (resourceType === 'skill') {
+      await fileService.removePath(join(paths.skillsDirs[0], resourceName))
+      return
+    }
+    const base = ruleBaseName(resourceName)
+    await fileService.removePath(join(paths.rulesDir, `${base}.mdc`))
+    await fileService.removePath(join(paths.rulesDir, `${base}.md`))
+  }
+
   private async assignResource(
     resource: ScannedResource,
     resourceType: ResourceType,
@@ -196,9 +240,6 @@ export class AssignmentService {
         break
       case 'subAgent':
         await this.assignSubAgent(resource as SubAgentResource, target)
-        break
-      case 'tool':
-        await this.assignTool(resource as ToolResource, target)
         break
       case 'mcp':
         break
@@ -278,14 +319,6 @@ export class AssignmentService {
     if (!existsSync(dest)) {
       await copyFile(agent.filePath, dest)
     }
-  }
-
-  async assignTool(tool: ToolResource, target: AssignTarget): Promise<void> {
-    const adapter = getAdapter(target.platformId)
-    if (!adapter) return
-    const settings = settingsStore.get()
-    const paths = this.resolvePaths(adapter, target, settings)
-    await fileService.copyDirectory(tool.rootPath, join(paths.toolsDir, tool.name))
   }
 
   async assignMcp(

@@ -1,6 +1,6 @@
 # Janus Web UI
 
-Installable PWA for [Janus](https://github.com/ArminDashti/janus) — manage Skills, Rules, MCPs, Hooks, Sub-agents, and Tools across AI platforms.
+Installable PWA for [Janus](https://github.com/ArminDashti/janus) — manage Skills, Rules, MCPs, Hooks, and Sub-agents across AI platforms.
 
 Talks to [janus-api](https://github.com/ArminDashti/janus-api) at `http://127.0.0.1:8005` by default. The desktop Electron app is separate.
 

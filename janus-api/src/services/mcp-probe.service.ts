@@ -4,11 +4,21 @@ import { agentDebugLog } from './debug-log'
 
 const PROBE_TIMEOUT_MS = 5000
 const MAX_CONCURRENT = 3
+/** Fresh probe results are reused for this long so page revisits don't respawn servers. */
+const PROBE_CACHE_TTL_MS = 5 * 60 * 1000
 
 interface ProbeResult {
   status: McpResource['status']
   tools: McpTool[]
   error?: string
+}
+
+/** name+params -> { at, result }; identical concurrent probes share one promise. */
+const probeCache = new Map<string, { at: number; result: ProbeResult }>()
+const inflight = new Map<string, Promise<ProbeResult>>()
+
+function paramsKey(name: string, params: Record<string, unknown>): string {
+  return `${name}\u0000${JSON.stringify(params)}`
 }
 
 function hasStdioTransport(params: Record<string, unknown>): boolean {
@@ -53,7 +63,9 @@ async function probeStdioMcp(params: Record<string, unknown>): Promise<ProbeResu
     const proc = spawn(command, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
       env,
-      shell: process.platform === 'win32'
+      shell: process.platform === 'win32',
+      // Without this, every probe flashes a console window on Windows.
+      windowsHide: true
     })
 
     const timer = setTimeout(() => {
@@ -158,6 +170,12 @@ export async function probeMcpServers(
   // #endregion
 
   const results = new Map<string, ProbeResult>()
+  const now = Date.now()
+  const stale: string[] = []
+  for (const [key, entry] of probeCache) {
+    if (now - entry.at > PROBE_CACHE_TTL_MS) stale.push(key)
+  }
+  for (const key of stale) probeCache.delete(key)
 
   const tasks = servers.map((server) => async () => {
     if (!hasStdioTransport(server.params)) {
@@ -170,7 +188,25 @@ export async function probeMcpServers(
         }
       }
     }
-    const result = await probeStdioMcp(server.params)
+
+    const key = paramsKey(server.name, server.params)
+    const cached = probeCache.get(key)
+    if (cached && now - cached.at <= PROBE_CACHE_TTL_MS) {
+      return { name: server.name, result: cached.result }
+    }
+
+    // Concurrent scans (StrictMode double-mount, refresh + save racing) share
+    // one spawn instead of each opening its own child process.
+    let probe = inflight.get(key)
+    if (!probe) {
+      probe = probeStdioMcp(server.params).then((result) => {
+        probeCache.set(key, { at: Date.now(), result })
+        inflight.delete(key)
+        return result
+      })
+      inflight.set(key, probe)
+    }
+    const result = await probe
     return { name: server.name, result }
   })
 

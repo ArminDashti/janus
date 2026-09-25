@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, ArrowDownToLine, Trash } from 'lucide-react'
+import { ArrowLeft, Trash } from 'lucide-react'
 import type { ResourceGroupSummary, ResourceType, UiFilterState } from '@shared/types'
 import { formatDateWithRelative } from '@shared/utils.browser'
 import { ResourceTable } from './ResourceTable'
 import { ResourceListToolbar } from './ResourceListToolbar'
 import { ResourceDirTree } from './ResourceDirTree'
-import { StructureWarningIcon } from './StructureWarningIcon'
 import { ALL_PROJECTS_KEY, GLOBAL_KEY } from './ProjectFilterDropdown'
 import { showMessage } from '@renderer/stores/messageStore'
 import { useAppStore } from '@renderer/stores/appStore'
@@ -18,7 +17,6 @@ interface ResourceListViewProps {
   resourceType: ListableResourceType
   filterState: UiFilterState
   onFilterChange: (patch: Partial<UiFilterState>) => void
-  onAssign?: (name: string) => void
   onEdit: (name: string) => void
   onRefresh?: () => void
   onAdd?: () => void
@@ -65,7 +63,6 @@ export function ResourceListView({
   resourceType,
   filterState,
   onFilterChange,
-  onAssign,
   onEdit,
   onRefresh,
   onAdd,
@@ -79,13 +76,12 @@ export function ResourceListView({
   const summariesRef = useRef(summaries)
   summariesRef.current = summaries
 
-  const { search, selectedProjectId, sortKey, sortDir } = filterState
+  const { search, searchField, selectedProjectId, sortKey, sortDir } = filterState
 
   const [selectedDirPath, setSelectedDirPath] = useState<string | null>(null)
 
   const enhanced = isEnhancedGrid(resourceType)
   const renamable = isRenamable(resourceType)
-  const showInstall = resourceType === 'rule' && Boolean(onAssign)
   const projectFilterVisible = showProjectFilter ?? enhanced
 
   const hasNestedDirs = useMemo(
@@ -130,8 +126,13 @@ export function ResourceListView({
     if (search.trim()) {
       const q = search.trim().toLowerCase()
       rows = rows.filter((r) => {
-        const haystack = [r.name, r.description].join(' ').toLowerCase()
-        return haystack.includes(q)
+        const haystack =
+          searchField === 'tags'
+            ? (r.tags ?? []).join(' ')
+            : searchField === 'category'
+              ? (r.category ?? '')
+              : [r.name, r.description].join(' ')
+        return haystack.toLowerCase().includes(q)
       })
     }
     if (enhanced || selectedProjectId !== ALL_PROJECTS_KEY) {
@@ -160,6 +161,7 @@ export function ResourceListView({
   }, [
     summaries,
     search,
+    searchField,
     selectedDirPath,
     selectedProjectId,
     sortKey,
@@ -220,22 +222,9 @@ export function ResourceListView({
   const actionsColumn = {
     key: 'actions',
     label: '',
-    className: showInstall ? 'w-28' : 'w-14',
+    className: 'w-14',
     render: (row: ResourceGroupSummary) => (
       <div className="flex items-center gap-0.5 whitespace-nowrap">
-        {showInstall && onAssign && (
-          <button
-            type="button"
-            onClick={(e) => {
-              stopProp(e)
-              onAssign(resourceOpKey(row))
-            }}
-            className="p-1.5 rounded hover:bg-zinc-800 text-zinc-500 hover:text-zinc-200"
-            title="Install"
-          >
-            <ArrowDownToLine size={15} strokeWidth={1.75} />
-          </button>
-        )}
         <button
           type="button"
           onClick={(e) => {
@@ -262,7 +251,6 @@ export function ResourceListView({
       const hashLabel = shortContentHash(row.contentHash)
       return renamable ? (
         <div className="flex items-center gap-2 min-w-[14rem]">
-          <StructureWarningIcon row={row} />
           <input
             type="text"
             defaultValue={row.name}
@@ -285,7 +273,6 @@ export function ResourceListView({
         </div>
       ) : (
         <span className="font-medium text-zinc-200 inline-flex items-center gap-2">
-          <StructureWarningIcon row={row} />
           {row.name}
           {showHash ? (
             <span className="ml-2 text-[10px] font-mono text-zinc-500">{hashLabel}</span>
@@ -370,6 +357,8 @@ export function ResourceListView({
       <ResourceListToolbar
         search={search}
         onSearchChange={(value) => onFilterChange({ search: value })}
+        searchField={searchField}
+        onSearchFieldChange={(value) => onFilterChange({ searchField: value })}
         onAdd={onAdd}
         onApplyAll={onApplyAll}
         showProjectFilter={projectFilterVisible}

@@ -1,14 +1,13 @@
-import type { UiFilterState } from '@shared/types'
+import type { UiFilterState, UiSearchField } from '@shared/types'
 import { ALL_PROJECTS_KEY, GLOBAL_KEY } from '@renderer/components/resources/ProjectFilterDropdown'
 
-export type ListableResourceType = 'skill' | 'rule' | 'hook' | 'subAgent' | 'tool'
+export type ListableResourceType = 'skill' | 'rule' | 'hook' | 'subAgent'
 
 const FILTER_KEYS: Record<ListableResourceType, string> = {
   skill: 'skills',
   rule: 'rules',
   hook: 'hooks',
-  subAgent: 'subagents',
-  tool: 'tools'
+  subAgent: 'subagents'
 }
 
 export function filterStorageKey(resourceType: ListableResourceType): string {
@@ -22,6 +21,7 @@ export function defaultSelectedProjectId(_resourceType?: ListableResourceType): 
 
 export const DEFAULT_UI_FILTER: UiFilterState = {
   search: '',
+  searchField: 'name',
   selectedProjectId: ALL_PROJECTS_KEY,
   selectedCategories: [],
   sortKey: 'name',
@@ -48,6 +48,12 @@ export function mergeUiFilter(
 
   const defaultProjectId = defaultSelectedProjectId(resourceType)
 
+  // Persisted filters from before searchField existed land here as undefined.
+  const searchField: UiSearchField =
+    rest.searchField === 'tags' || rest.searchField === 'category'
+      ? rest.searchField
+      : 'name'
+
   let selectedProjectId = rest.selectedProjectId ?? defaultProjectId
 
   // Migrate old Global list filter → All
@@ -58,6 +64,7 @@ export function mergeUiFilter(
   return {
     ...DEFAULT_UI_FILTER,
     ...rest,
+    searchField,
     selectedProjectId,
     selectedCategories: rest.selectedCategories ?? DEFAULT_UI_FILTER.selectedCategories
   }

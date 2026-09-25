@@ -1,9 +1,17 @@
 import { ProjectFilterDropdown } from './ProjectFilterDropdown'
-import type { ProjectInfo } from '@shared/types'
+import type { ProjectInfo, UiSearchField } from '@shared/types'
+
+const SEARCH_FIELD_OPTIONS: { value: UiSearchField; label: string }[] = [
+  { value: 'name', label: 'Name' },
+  { value: 'tags', label: 'Tags' },
+  { value: 'category', label: 'Category' }
+]
 
 interface ResourceListToolbarProps {
   search: string
   onSearchChange: (value: string) => void
+  searchField?: UiSearchField
+  onSearchFieldChange?: (field: UiSearchField) => void
   onAdd?: () => void
   addLabel?: string
   onApplyAll?: () => void
@@ -17,6 +25,8 @@ interface ResourceListToolbarProps {
 export function ResourceListToolbar({
   search,
   onSearchChange,
+  searchField = 'name',
+  onSearchFieldChange,
   onAdd,
   addLabel = 'Add',
   onApplyAll,
@@ -35,6 +45,21 @@ export function ResourceListToolbar({
         placeholder="Search…"
         className="w-72 min-w-[18rem] shrink-0 bg-zinc-900 border border-zinc-700 rounded px-3 py-1.5 text-sm"
       />
+      {onSearchFieldChange && (
+        <select
+          value={searchField}
+          onChange={(e) => onSearchFieldChange(e.target.value as UiSearchField)}
+          aria-label="Search field"
+          title="Search in"
+          className="shrink-0 bg-zinc-900 border border-zinc-700 rounded px-2 py-1.5 text-sm text-zinc-300 cursor-pointer hover:bg-zinc-800"
+        >
+          {SEARCH_FIELD_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      )}
       {showProjectFilter && onProjectFilterChange && selectedProjectId && (
         <ProjectFilterDropdown
           projects={projects}

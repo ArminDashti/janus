@@ -10,14 +10,26 @@ interface PlatformLogoProps {
 
 export function PlatformLogo({ platformId, size = 24, className }: PlatformLogoProps) {
   const [src, setSrc] = useState<string | null>(null)
+  const [triedPng, setTriedPng] = useState(false)
 
   useEffect(() => {
+    setTriedPng(false)
     window.agentManager.getLogoPath(platformId).then((path) => {
       if (path) setSrc(path)
     })
   }, [platformId])
 
   const label = PLATFORM_LABELS[platformId as PlatformId] ?? platformId
+
+  // .svg missing => try the .png sibling once, then fall back to initials.
+  const handleImgError = () => {
+    if (src?.endsWith('.svg') && !triedPng) {
+      setTriedPng(true)
+      setSrc(`${src.slice(0, -4)}.png`)
+    } else {
+      setSrc(null)
+    }
+  }
 
   if (src) {
     return (
@@ -26,6 +38,7 @@ export function PlatformLogo({ platformId, size = 24, className }: PlatformLogoP
         alt={label}
         width={size}
         height={size}
+        onError={handleImgError}
         className={cn('rounded object-contain', className)}
       />
     )

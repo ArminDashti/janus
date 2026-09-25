@@ -3,7 +3,7 @@ import { existsSync } from 'fs'
 import { basename, dirname, extname, join } from 'path'
 import { getTrashPath } from '../app-paths'
 
-export type TrashResourceKind = 'skills' | 'rules' | 'hooks' | 'subAgents' | 'tools'
+export type TrashResourceKind = 'skills' | 'rules' | 'hooks' | 'subAgents'
 
 export class FileService {
   async readText(filePath: string): Promise<string> {

@@ -4,6 +4,10 @@ export type PlatformId =
   | 'devin'
   | 'opencode'
   | 'kilo'
+  | 'zcode'
+  | 'hermes'
+  | 'grok'
+  | 'kiro'
 
 export type ResourceType =
   | 'skill'
@@ -11,7 +15,6 @@ export type ResourceType =
   | 'mcp'
   | 'hook'
   | 'subAgent'
-  | 'tool'
 
 export interface ResourceSource {
   type: 'platform' | 'project' | 'local'
@@ -41,8 +44,13 @@ export interface ProjectRootConfig {
   projects: ProjectInfo[]
 }
 
+/** Which field the list search box matches against (item 14). */
+export type UiSearchField = 'name' | 'tags' | 'category'
+
 export interface UiFilterState {
   search: string
+  /** Field the search box matches; defaults to 'name'. */
+  searchField: UiSearchField
   selectedProjectId: string
   selectedCategories: string[]
   sortKey: string
@@ -57,6 +65,8 @@ export interface AppSettings {
   startup: { runOnLogin: boolean }
   /** UI theme id, e.g. vscode-dark, github-dark, dracula. */
   theme: string
+  /** UI font family name, e.g. 'Segoe UI', 'Inter'. */
+  font: string
   dataPath: string
   platforms: PlatformConfig[]
   projectRoots: ProjectRootConfig[]
@@ -67,20 +77,20 @@ export interface AppSettings {
     model: string
   }
   uiFilters: Record<string, Partial<UiFilterState>>
+  /** Per-MCP enabled state keyed by MCP name (absent ⇒ enabled). */
+  mcpEnabled?: Record<string, boolean>
   assignments: {
     skills: Record<string, string[]>
     rules: Record<string, string[]>
     mcps: Record<string, string[]>
     hooks: Record<string, string[]>
     subAgents: Record<string, string[]>
-    tools: Record<string, string[]>
   }
   mandatoryForAllProjects: {
     skills: Record<string, boolean>
     rules: Record<string, boolean>
     hooks: Record<string, boolean>
     subAgents: Record<string, boolean>
-    tools: Record<string, boolean>
   }
 }
 
@@ -131,6 +141,8 @@ export interface McpResource {
   error?: string
   platforms: string[]
   configPath: string
+  /** False when disabled via the MCPs page (settings.mcpEnabled). */
+  enabled: boolean
 }
 
 /** Result of probing a single MCP server (scan-time or on-demand test). */
@@ -186,24 +198,12 @@ export interface SubAgentResource {
   enabled: boolean
 }
 
-export interface ToolResource {
-  id: string
-  name: string
-  description?: string
-  rootPath: string
-  entrypoint?: string
-  files: string[]
-  source: ResourceSource
-  enabled: boolean
-}
-
 export interface ScanResult {
   skills: SkillResource[]
   rules: RuleResource[]
   mcps: McpResource[]
   hooks: HookResource[]
   subAgents: SubAgentResource[]
-  tools: ToolResource[]
 }
 
 export interface AssignTarget {
@@ -217,6 +217,8 @@ export interface ProjectMatrixRow {
   projectId: string
   projectName: string
   assigned: boolean
+  /** Present on IDE/CLI global rows (`projectId = platform:<id>`); absent on project rows. */
+  platformId?: PlatformId
 }
 
 export interface ResourceGroupSummary {
@@ -235,6 +237,10 @@ export interface ResourceGroupSummary {
   mandatory: boolean
   canonicalId: string
   description: string
+  /** Frontmatter tags (only present when the file declares them). */
+  tags?: string[]
+  /** Frontmatter category — only when the file declares one; never invented. */
+  category?: string
   event?: string
   /** False when the resource does not follow the required metadata structure */
   structureOk: boolean
@@ -245,32 +251,48 @@ export const PLATFORM_IDS: PlatformId[] = [
   'antigravity',
   'cursor',
   'devin',
+  'grok',
+  'hermes',
   'kilo',
-  'opencode'
+  'kiro',
+  'opencode',
+  'zcode'
 ]
 
 export const PLATFORM_LABELS: Record<PlatformId, string> = {
   antigravity: 'Antigravity',
   cursor: 'Cursor',
   devin: 'Devin',
+  grok: 'Grok',
+  hermes: 'Hermes',
   kilo: 'Kilo',
-  opencode: 'OpenCode'
+  kiro: 'Kiro',
+  opencode: 'OpenCode',
+  zcode: 'ZCode'
 }
 
 export const DEFAULT_PLATFORM_ROOTS: Record<PlatformId, string> = {
   antigravity: '~/.antigravity',
   cursor: '~/.cursor',
   devin: '~/.devin',
+  grok: '~/.grok',
+  hermes: '~/.hermes',
   kilo: '~/.config/kilo',
-  opencode: '~/.config/opencode'
+  kiro: '~/.kiro',
+  opencode: '~/.config/opencode',
+  zcode: '~/.zcode'
 }
 
 export const DEFAULT_PLATFORM_PROJECT_DIRS: Record<PlatformId, string> = {
   antigravity: '.antigravity',
   cursor: '.cursor',
   devin: '.devin',
+  grok: '.grok',
+  hermes: '.hermes',
   kilo: '.kilo',
-  opencode: '.opencode'
+  kiro: '.kiro',
+  opencode: '.opencode',
+  zcode: '.zcode'
 }
 
 export const CURSOR_ONLY_RESOURCES: ResourceType[] = ['hook', 'subAgent']

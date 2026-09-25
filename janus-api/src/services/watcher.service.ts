@@ -24,7 +24,7 @@ function collectWatchPaths(): string[] {
     if (!adapter) continue
 
     const platformPaths = adapter.getPlatformPaths(platform.rootPath)
-    const candidates = [platformPaths.toolsDir, join(platform.rootPath, 'mcp.json')]
+    const candidates = [join(platform.rootPath, 'mcp.json')]
 
     for (const p of candidates) {
       if (p && existsSync(p)) paths.add(p)
@@ -54,7 +54,6 @@ function collectWatchPaths(): string[] {
           for (const skillsDir of projectPaths.skillsDirs) {
             if (existsSync(skillsDir)) paths.add(skillsDir)
           }
-          if (existsSync(projectPaths.toolsDir)) paths.add(projectPaths.toolsDir)
           if (existsSync(projectPaths.mcpConfigPath)) paths.add(projectPaths.mcpConfigPath)
         }
       }

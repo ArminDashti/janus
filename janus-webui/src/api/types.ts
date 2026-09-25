@@ -10,8 +10,7 @@ import type {
   RuleResource,
   ScanResult,
   SkillResource,
-  SubAgentResource,
-  ToolResource
+  SubAgentResource
 } from '@shared/types'
 
 export interface AgentManagerApi {
@@ -38,6 +37,12 @@ export interface AgentManagerApi {
     resourceName: string,
     assignedProjectIds: string[]
   ) => Promise<boolean>
+  setGlobalAssignment: (
+    resourceType: Exclude<ResourceType, 'mcp'>,
+    resourceName: string,
+    platformId: PlatformId,
+    assigned: boolean
+  ) => Promise<boolean>
   applyAllToAllProjects: (resourceType: Exclude<ResourceType, 'mcp'>) => Promise<number>
   setMandatory: (
     resourceType: Exclude<ResourceType, 'mcp'>,
@@ -58,7 +63,7 @@ export interface AgentManagerApi {
   getCanonicalResource: (
     resourceType: Exclude<ResourceType, 'mcp'>,
     resourceName: string
-  ) => Promise<SkillResource | RuleResource | HookResource | SubAgentResource | ToolResource | null>
+  ) => Promise<SkillResource | RuleResource | HookResource | SubAgentResource | null>
   deleteMcp: (name: string, configPath: string) => Promise<boolean>
   addMcp: (name: string, params: Record<string, unknown>) => Promise<string>
   testMcp: (name: string, params: Record<string, unknown>) => Promise<McpProbeResult>

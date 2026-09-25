@@ -5,6 +5,8 @@ import fastifyStatic from '@fastify/static'
 import { ensurePortableLayout, getBrandingPath, getLogosPath } from './app-paths'
 import { addSseClient } from './events'
 import { registerRoutes } from './routes/index'
+import { applyStartupSetting } from './services/startup.service'
+import { settingsStore } from './services/settings-store'
 import { startFileWatcher } from './services/watcher.service'
 
 function parseBind(bind: string): { host: string; port: number } {
@@ -24,6 +26,9 @@ function parseBind(bind: string): { host: string; port: number } {
 export async function startServer(): Promise<void> {
   ensurePortableLayout()
   startFileWatcher()
+  // Re-apply the login autostart entry on every boot so the HKCU Run value
+  // stays in sync with settings.json (manual edits, reinstalls, drift).
+  applyStartupSetting(settingsStore.get().startup?.runOnLogin ?? false)
 
   const bind = process.env.JANUS_API_BIND || '0.0.0.0:8005'
   const { host, port } = parseBind(bind)

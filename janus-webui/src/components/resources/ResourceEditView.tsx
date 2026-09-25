@@ -4,8 +4,7 @@ import type {
   ResourceType,
   RuleResource,
   SkillResource,
-  SubAgentResource,
-  ToolResource
+  SubAgentResource
 } from '@shared/types'
 import { isMarkdownFile } from '@shared/utils.browser'
 import { FileTree } from '@renderer/components/FileTree'
@@ -32,7 +31,6 @@ type CanonicalResource =
   | RuleResource
   | HookResource
   | SubAgentResource
-  | ToolResource
 
 interface ResourceEditViewProps {
   resourceType: ListableResourceType
@@ -54,8 +52,6 @@ function getFiles(resource: CanonicalResource, resourceType: ListableResourceTyp
     }
     case 'subAgent':
       return [(resource as SubAgentResource).filePath]
-    case 'tool':
-      return (resource as ToolResource).files
     default:
       return []
   }
@@ -65,8 +61,6 @@ function getRootPath(resource: CanonicalResource, resourceType: ListableResource
   switch (resourceType) {
     case 'skill':
       return (resource as SkillResource).rootPath
-    case 'tool':
-      return (resource as ToolResource).rootPath
     default:
       return undefined
   }
@@ -84,10 +78,6 @@ function getDefaultFile(resource: CanonicalResource, resourceType: ListableResou
     }
     case 'subAgent':
       return (resource as SubAgentResource).filePath
-    case 'tool': {
-      const t = resource as ToolResource
-      return t.files.find((f) => f.endsWith('tool.json')) ?? t.files[0] ?? t.rootPath
-    }
     default:
       return ''
   }

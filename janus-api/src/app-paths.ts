@@ -104,8 +104,7 @@ export function ensurePortableLayout(): void {
     '.trash/skills',
     '.trash/rules',
     '.trash/hooks',
-    '.trash/subAgents',
-    '.trash/tools'
+    '.trash/subAgents'
   ]
 
   for (const dir of dirs) {

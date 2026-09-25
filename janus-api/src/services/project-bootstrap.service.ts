@@ -76,7 +76,6 @@ export class ProjectBootstrapService {
     const dotDir = getProjectDotDir(projectPath, resolveProjectDirName(platformId))
     await fileService.writeText(join(dotDir, 'skills', '.keep'), '')
     await fileService.writeText(join(dotDir, 'rules', '.keep'), '')
-    await fileService.writeText(join(dotDir, 'tools', '.keep'), '')
 
     if (platformId === 'cursor') {
       await fileService.writeText(join(dotDir, 'hooks', '.keep'), '')

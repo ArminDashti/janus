@@ -6,7 +6,6 @@ import {
   GitBranch,
   Bot,
   Cable,
-  Hammer,
   Settings2,
   CircleHelp,
   ChevronLeft,
@@ -35,7 +34,6 @@ const resourceNav: NavItem[] = [
   { id: 'hooks', label: 'Hooks', icon: GitBranch },
   { id: 'subagents', label: 'Sub-agents', icon: Bot },
   { id: 'mcps', label: 'MCPs', icon: Cable },
-  { id: 'tools', label: 'Tools', icon: Hammer },
   { id: 'repositories', label: 'Repositories', icon: FolderGit2 }
 ]
 

@@ -15,7 +15,7 @@
   --dp-raised: #2d2d30;
   --dp-border: #3e3e42;
   --dp-input: #3c3c3c;
-  --dp-fg: #cccccc;
+  --dp-fg: #f2f2f2;
   --dp-muted: #858585;
   --dp-accent: #007acc;
   --dp-selection: #094771;
@@ -30,9 +30,9 @@
   --c-accent-muted: 9 71 113;
   --c-accent-fg: 55 148 255;
   --c-zinc-50: 243 243 243;
-  --c-zinc-100: 231 231 231;
-  --c-zinc-200: 212 212 212;
-  --c-zinc-300: 204 204 204;
+  --c-zinc-100: 243 243 243;
+  --c-zinc-200: 236 236 236;
+  --c-zinc-300: 228 228 228;
   --c-zinc-400: 157 157 157;
   --c-zinc-500: 133 133 133;
   --c-zinc-600: 106 106 106;
@@ -53,7 +53,7 @@
   --dp-raised: #161b22;
   --dp-border: #30363d;
   --dp-input: #0d1117;
-  --dp-fg: #e6edf3;
+  --dp-fg: #f0f6fc;
   --dp-muted: #8b949e;
   --dp-accent: #1f6feb;
   --dp-selection: #043786;
@@ -68,9 +68,9 @@
   --c-accent-muted: 4 55 134;
   --c-accent-fg: 88 166 255;
   --c-zinc-50: 246 248 250;
-  --c-zinc-100: 230 237 243;
-  --c-zinc-200: 201 209 217;
-  --c-zinc-300: 177 186 196;
+  --c-zinc-100: 241 246 250;
+  --c-zinc-200: 228 233 238;
+  --c-zinc-300: 210 217 225;
   --c-zinc-400: 139 148 158;
   --c-zinc-500: 110 118 129;
   --c-zinc-600: 72 79 88;
@@ -145,8 +145,8 @@
   --c-accent-fg: 189 147 249;
   --c-zinc-50: 255 255 255;
   --c-zinc-100: 248 248 242;
-  --c-zinc-200: 226 227 242;
-  --c-zinc-300: 200 203 227;
+  --c-zinc-200: 240 241 248;
+  --c-zinc-300: 224 226 240;
   --c-zinc-400: 163 168 204;
   --c-zinc-500: 98 114 164;
   --c-zinc-600: 77 81 112;
@@ -183,8 +183,8 @@
   --c-accent-fg: 102 217 239;
   --c-zinc-50: 255 255 255;
   --c-zinc-100: 248 248 242;
-  --c-zinc-200: 224 223 212;
-  --c-zinc-300: 201 199 180;
+  --c-zinc-200: 240 239 234;
+  --c-zinc-300: 226 225 216;
   --c-zinc-400: 158 156 138;
   --c-zinc-500: 117 113 94;
   --c-zinc-600: 107 108 94;
@@ -205,7 +205,7 @@
   --dp-raised: #2c313a;
   --dp-border: #3a3f4b;
   --dp-input: #21252b;
-  --dp-fg: #abb2bf;
+  --dp-fg: #e2e5eb;
   --dp-muted: #5c6370;
   --dp-accent: #61afef;
   --dp-selection: #3e4451;
@@ -220,9 +220,9 @@
   --c-accent-muted: 62 68 81;
   --c-accent-fg: 97 175 239;
   --c-zinc-50: 242 244 248;
-  --c-zinc-100: 226 230 238;
-  --c-zinc-200: 200 205 215;
-  --c-zinc-300: 171 178 191;
+  --c-zinc-100: 240 242 247;
+  --c-zinc-200: 226 229 236;
+  --c-zinc-300: 205 210 220;
   --c-zinc-400: 130 138 153;
   --c-zinc-500: 92 99 112;
   --c-zinc-600: 75 82 99;
@@ -258,9 +258,9 @@
   --c-accent-muted: 67 76 94;
   --c-accent-fg: 136 192 208;
   --c-zinc-50: 248 250 252;
-  --c-zinc-100: 236 239 244;
-  --c-zinc-200: 223 228 238;
-  --c-zinc-300: 197 206 222;
+  --c-zinc-100: 245 247 251;
+  --c-zinc-200: 233 237 244;
+  --c-zinc-300: 222 228 238;
   --c-zinc-400: 154 165 188;
   --c-zinc-500: 108 120 145;
   --c-zinc-600: 92 103 127;
@@ -281,7 +281,7 @@
   --dp-raised: #313244;
   --dp-border: #45475a;
   --dp-input: #181825;
-  --dp-fg: #cdd6f4;
+  --dp-fg: #e6e9f4;
   --dp-muted: #6c7086;
   --dp-accent: #89b4fa;
   --dp-selection: #45475a;
@@ -296,9 +296,9 @@
   --c-accent-muted: 69 71 90;
   --c-accent-fg: 137 180 250;
   --c-zinc-50: 239 241 245;
-  --c-zinc-100: 205 214 244;
-  --c-zinc-200: 186 194 222;
-  --c-zinc-300: 166 173 200;
+  --c-zinc-100: 232 236 248;
+  --c-zinc-200: 222 227 242;
+  --c-zinc-300: 208 214 232;
   --c-zinc-400: 127 132 156;
   --c-zinc-500: 108 112 134;
   --c-zinc-600: 88 91 112;
@@ -325,7 +325,7 @@ body,
 }
 
 body {
-  font-family: 'Segoe UI', Consolas, system-ui, -apple-system, sans-serif;
+  font-family: var(--app-font, 'Inter'), Consolas, system-ui, -apple-system, sans-serif;
   background: var(--dp-bg);
   color: var(--dp-fg);
 }

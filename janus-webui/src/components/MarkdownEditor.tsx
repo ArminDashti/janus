@@ -5,6 +5,7 @@ import { oneDark } from '@codemirror/theme-one-dark'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { cn } from '@renderer/lib/utils'
+import { CopyButton } from '@renderer/components/CopyButton'
 import { Group, Panel, ResizeHandle } from '@renderer/components/layout/ResizablePanels'
 
 type EditorMode = 'edit' | 'preview' | 'split'
@@ -156,16 +157,19 @@ export function MarkdownEditor({
           ))}
         </div>
         {filePath && <span className="text-xs text-zinc-500 truncate flex-1">{filePath}</span>}
-        {!readOnly && onSave && (
-          <button
-            type="button"
-            onClick={() => void handleSave()}
-            disabled={saving}
-            className="px-3 py-1 text-xs bg-emerald-700 hover:bg-emerald-600 rounded disabled:opacity-50"
-          >
-            {saving ? 'Saving…' : 'Save'}
-          </button>
-        )}
+        <div className={cn('flex items-center gap-2', !filePath && 'ml-auto')}>
+          <CopyButton text={() => draft} />
+          {!readOnly && onSave && (
+            <button
+              type="button"
+              onClick={() => void handleSave()}
+              disabled={saving}
+              className="px-3 py-1 text-xs bg-emerald-700 hover:bg-emerald-600 rounded disabled:opacity-50"
+            >
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+          )}
+        </div>
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
         {mode === 'edit' && <div className="h-full">{editorPane}</div>}

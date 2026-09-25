@@ -9,19 +9,19 @@ import { showMessage } from '@renderer/stores/messageStore'
 import { cn } from '@renderer/lib/utils'
 import type { ListableResourceType } from '@renderer/lib/filter-utils'
 
-type RepoTab = 'skill' | 'rule' | 'hook' | 'subAgent' | 'tool'
+type RepoTab = 'skill' | 'rule' | 'hook' | 'subAgent'
 
 const TABS: { id: RepoTab; label: string }[] = [
   { id: 'skill', label: 'Skills' },
   { id: 'rule', label: 'Rules' },
   { id: 'hook', label: 'Hooks' },
-  { id: 'subAgent', label: 'Sub-agents' },
-  { id: 'tool', label: 'Tools' }
+  { id: 'subAgent', label: 'Sub-agents' }
 ]
 
 function emptyFilter(projectId: string): UiFilterState {
   return {
     search: '',
+    searchField: 'name',
     selectedProjectId: projectId,
     selectedCategories: [],
     sortKey: 'name',
@@ -125,7 +125,7 @@ export function RepositoriesPage() {
         <p className="text-zinc-300 font-medium">No repositories imported</p>
         <p className="text-sm text-zinc-500 max-w-sm">
           Import projects under Settings → Projects, then return here to browse Skills, Rules,
-          Hooks, Sub-agents, and Tools per repository.
+          Hooks, and Sub-agents per repository.
         </p>
         <button
           type="button"

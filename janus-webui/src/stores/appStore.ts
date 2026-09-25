@@ -7,7 +7,6 @@ export type PageId =
   | 'hooks'
   | 'subagents'
   | 'mcps'
-  | 'tools'
   | 'repositories'
   | 'settings'
   | 'instructions'
@@ -31,8 +30,7 @@ const emptyScan: ScanResult = {
   rules: [],
   mcps: [],
   hooks: [],
-  subAgents: [],
-  tools: []
+  subAgents: []
 }
 
 export const useAppStore = create<AppState>((set, get) => ({

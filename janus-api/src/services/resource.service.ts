@@ -3,6 +3,7 @@ import { basename, dirname, join, resolve } from 'path'
 import type {
   AppSettings,
   HookResource,
+  PlatformId,
   ProjectInfo,
   ProjectMatrixRow,
   ResourceGroupSummary,
@@ -10,8 +11,7 @@ import type {
   RuleResource,
   ScanResult,
   SkillResource,
-  SubAgentResource,
-  ToolResource
+  SubAgentResource
 } from '../shared/types'
 import { CURSOR_ONLY_RESOURCES, GLOBAL_TARGET_KEY } from '../shared/types'
 import { ruleBaseName, ruleDisplayName, ruleMatchesDisplayName } from '../shared/rule-names'
@@ -47,7 +47,6 @@ type ScannedResource =
   | RuleResource
   | HookResource
   | SubAgentResource
-  | ToolResource
 
 const ASSIGNMENT_KEY: Record<
   Exclude<ResourceType, 'mcp'>,
@@ -56,8 +55,7 @@ const ASSIGNMENT_KEY: Record<
   skill: 'skills',
   rule: 'rules',
   hook: 'hooks',
-  subAgent: 'subAgents',
-  tool: 'tools'
+  subAgent: 'subAgents'
 }
 
 const MANDATORY_KEY: Record<
@@ -67,8 +65,7 @@ const MANDATORY_KEY: Record<
   skill: 'skills',
   rule: 'rules',
   hook: 'hooks',
-  subAgent: 'subAgents',
-  tool: 'tools'
+  subAgent: 'subAgents'
 }
 
 function getItems(scan: ScanResult, resourceType: ResourceType): ScannedResource[] {
@@ -81,8 +78,6 @@ function getItems(scan: ScanResult, resourceType: ResourceType): ScannedResource
       return scan.hooks
     case 'subAgent':
       return scan.subAgents
-    case 'tool':
-      return scan.tools
     default:
       return []
   }
@@ -200,8 +195,6 @@ function trashKind(resourceType: Exclude<ResourceType, 'mcp'>): TrashResourceKin
       return 'hooks'
     case 'subAgent':
       return 'subAgents'
-    case 'tool':
-      return 'tools'
   }
 }
 
@@ -247,13 +240,6 @@ async function estimateTokens(item: ScannedResource, resourceType: ResourceType)
     case 'subAgent':
       path = (item as SubAgentResource).filePath
       break
-    case 'tool': {
-      const t = item as ToolResource
-      path = t.entrypoint
-        ? join(t.rootPath, t.entrypoint)
-        : (t.files.find((f) => f.endsWith('tool.json')) ?? t.files[0])
-      break
-    }
     default:
       return 0
   }
@@ -281,9 +267,6 @@ async function getLastUpdated(item: ScannedResource, resourceType: ResourceType)
     case 'subAgent':
       path = (item as SubAgentResource).filePath
       break
-    case 'tool':
-      path = (item as ToolResource).rootPath
-      break
     default:
       return null
   }
@@ -295,10 +278,19 @@ async function getLastUpdated(item: ScannedResource, resourceType: ResourceType)
   }
 }
 
+/** Frontmatter fields surfaced on list summaries for search (item 14). */
+interface ExtractedMeta {
+  description: string
+  tags: string[] | undefined
+  /** Only set when the file actually declares a category — never invented. */
+  category: string | undefined
+}
+
 async function extractDescription(
   item: ScannedResource,
   resourceType: ResourceType
-): Promise<string> {
+): Promise<ExtractedMeta> {
+  const empty: ExtractedMeta = { description: '', tags: undefined, category: undefined }
   let path: string | undefined
   if (resourceType === 'skill') {
     path = (item as SkillResource).skillMdPath
@@ -307,15 +299,41 @@ async function extractDescription(
   } else if (resourceType === 'subAgent') {
     path = (item as SubAgentResource).filePath
   } else {
-    return ''
+    return empty
   }
-  if (!path || !existsSync(path)) return ''
+  if (!path || !existsSync(path)) return empty
   try {
     const text = await fileService.readText(path)
     const { frontmatter } = parseFrontmatter(text)
-    return String(frontmatter.description ?? '').trim()
+    const description = String(frontmatter.description ?? '').trim()
+
+    const nested =
+      frontmatter.metadata && typeof frontmatter.metadata === 'object'
+        ? (frontmatter.metadata as Record<string, unknown>)
+        : frontmatter
+
+    const rawTags = nested.tags
+    let tags: string[] | undefined
+    if (Array.isArray(rawTags)) {
+      const list = rawTags.map((t) => String(t).trim()).filter(Boolean)
+      if (list.length > 0) tags = list
+    } else if (typeof rawTags === 'string' && rawTags.trim()) {
+      // "[a, b]" or comma list in a scalar field
+      tags = rawTags
+        .replace(/^\[|\]$/g, '')
+        .split(',')
+        .map((t) => t.trim().replace(/^["']|["']$/g, ''))
+        .filter(Boolean)
+      if (tags.length === 0) tags = undefined
+    }
+
+    const rawCategory = nested.category ?? frontmatter.category
+    const category =
+      rawCategory == null ? undefined : String(rawCategory).trim() || undefined
+
+    return { description, tags, category }
   } catch {
-    return ''
+    return empty
   }
 }
 
@@ -339,11 +357,15 @@ export class ResourceService {
     for (const [key, instances] of grouped) {
       const canonical = pickCanonical(instances)
       const displayName = canonical.name
-      const [tokens, description] = await Promise.all([
+      const [tokens, meta] = await Promise.all([
         estimateTokens(canonical, resourceType),
         resourceType === 'skill' || resourceType === 'rule' || resourceType === 'subAgent'
           ? extractDescription(canonical, resourceType)
-          : Promise.resolve('')
+          : Promise.resolve<ExtractedMeta>({
+              description: '',
+              tags: undefined,
+              category: undefined
+            })
       ])
 
       const lastUpdatedAt =
@@ -382,7 +404,9 @@ export class ResourceService {
         lastUpdatedAt,
         mandatory,
         canonicalId: canonical.id,
-        description,
+        description: meta.description,
+        tags: meta.tags,
+        category: meta.category,
         event:
           resourceType === 'hook'
             ? (canonical as HookResource).event
@@ -435,13 +459,36 @@ export class ResourceService {
       instances.filter((i) => i.source.type === 'project').map((i) => i.source.id)
     )
 
-    return getAllProjects(settings)
+    // IDE/CLI global rows (Skills/Rules only): one per platform enabled in Settings; ON when
+    // the resource exists in that platform's global folder.
+    const platformRows: ProjectMatrixRow[] =
+      resourceType === 'skill' || resourceType === 'rule'
+        ? settings.platforms.flatMap((p) => {
+            if (!p.enabled) return []
+            const adapter = getAdapter(p.id)
+            if (!adapter) return []
+            return [
+              {
+                projectId: `platform:${p.id}`,
+                projectName: `${adapter.label} (Global)`,
+                assigned: instances.some(
+                  (i) => i.source.type === 'platform' && i.source.id === p.id
+                ),
+                platformId: p.id
+              }
+            ]
+          })
+        : []
+
+    const projectRows = getAllProjects(settings)
       .map((p) => ({
         projectId: p.id,
         projectName: p.name,
         assigned: assignedProjectIds.has(p.id)
       }))
       .sort((a, b) => a.projectName.localeCompare(b.projectName))
+
+    return [...platformRows, ...projectRows]
   }
 
   findCanonicalInstance(
@@ -466,8 +513,13 @@ export class ResourceService {
     if (!canonical) throw new Error(`Resource not found: ${resourceName}`)
 
     const matrix = this.getProjectMatrix(scan, settings, resourceType, resourceName)
-    const previousAssigned = new Set(matrix.filter((r) => r.assigned).map((r) => r.projectId))
-    const nextAssigned = new Set(assignedProjectIds)
+    // Platform ("<Name> (Global)") rows are managed by applyGlobalAssignment, never here.
+    const previousAssigned = new Set(
+      matrix.filter((r) => !r.platformId && r.assigned).map((r) => r.projectId)
+    )
+    const nextAssigned = new Set(
+      assignedProjectIds.filter((id) => !id.startsWith('platform:'))
+    )
 
     for (const projectId of nextAssigned) {
       if (!previousAssigned.has(projectId)) {
@@ -485,6 +537,35 @@ export class ResourceService {
               : canonical.name
         await assignmentService.unassignFromProject(diskName, resourceType, projectId)
       }
+    }
+  }
+
+  /** Copy the resource into (or remove it from) an IDE/CLI global folder ("<Name> (Global)" row). */
+  async applyGlobalAssignment(
+    resourceType: Exclude<ResourceType, 'mcp'>,
+    resourceName: string,
+    platformId: PlatformId,
+    assigned: boolean
+  ): Promise<void> {
+    if (resourceType !== 'skill' && resourceType !== 'rule') {
+      throw new Error('Global assignment is only supported for skills and rules')
+    }
+    const settings = settingsStore.get()
+    const platform = settings.platforms.find((p) => p.id === platformId)
+    if (!platform?.enabled) throw new Error('IDE/CLI is not enabled')
+
+    const scan = await scannerService.scanAll(settings)
+    const canonical = this.findCanonicalInstance(scan, resourceType, resourceName)
+    if (!canonical) throw new Error(`Resource not found: ${resourceName}`)
+
+    if (assigned) {
+      await assignmentService.assignToPlatformGlobal(canonical, resourceType, platformId)
+    } else {
+      const diskName =
+        resourceType === 'rule'
+          ? ruleDisplayName((canonical as RuleResource).name)
+          : (canonical as SkillResource).name
+      await assignmentService.unassignFromPlatformGlobal(diskName, resourceType, platformId)
     }
   }
 
@@ -558,9 +639,6 @@ export class ResourceService {
             break
           case 'subAgent':
             path = (item as SubAgentResource).filePath
-            break
-          case 'tool':
-            path = (item as ToolResource).rootPath
             break
           default:
             continue
@@ -1195,16 +1273,14 @@ export class ResourceService {
       skills: {},
       rules: {},
       hooks: {},
-      subAgents: {},
-      tools: {}
+      subAgents: {}
     }
 
     const types: Array<Exclude<ResourceType, 'mcp'>> = [
       'skill',
       'rule',
       'hook',
-      'subAgent',
-      'tool'
+      'subAgent'
     ]
 
     for (const resourceType of types) {

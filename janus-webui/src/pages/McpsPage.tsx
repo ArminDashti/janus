@@ -1,7 +1,9 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
-import { ChevronDown, FlaskConical, Loader2, Pencil, Plus, Trash } from 'lucide-react'
+import { FlaskConical, Loader2, Pencil, Plus, Trash } from 'lucide-react'
 import { JsonEditor } from '@renderer/components/JsonEditor'
+import { McpToolsModal } from '@renderer/components/mcp/McpToolsModal'
 import { ResourceSubViewHeader } from '@renderer/components/resources/ResourceListView'
+import { Toggle } from '@renderer/components/Toggle'
 import { useAppStore } from '@renderer/stores/appStore'
 import { showMessage } from '@renderer/stores/messageStore'
 import { cn } from '@renderer/lib/utils'
@@ -32,14 +34,16 @@ function configDir(configPath: string): string {
 }
 
 export function McpsPage() {
-  const { scan, refreshScan } = useAppStore()
+  const { scan, refreshScan, settings, loadSettings } = useAppStore()
   const [view, setView] = useState<ViewMode>('list')
   const [selected, setSelected] = useState<McpResource | null>(null)
   const [addOpen, setAddOpen] = useState(false)
   const [addJson, setAddJson] = useState('{\n  "command": "npx",\n  "args": ["-y", "some-mcp-server"]\n}')
   const [addName, setAddName] = useState('')
   const [paramsJson, setParamsJson] = useState('')
-  const [expanded, setExpanded] = useState<string | null>(null)
+  const [toolsFor, setToolsFor] = useState<
+    Pick<McpResource, 'name' | 'status' | 'tools' | 'error'> | null
+  >(null)
   const [testing, setTesting] = useState<string | null>(null)
   const [testResults, setTestResults] = useState<Record<string, McpProbeResult>>({})
 
@@ -67,6 +71,24 @@ export function McpsPage() {
     setSelected(mcp)
     setParamsJson(JSON.stringify(mcp.params, null, 2))
     setView('edit')
+  }
+
+  const handleToggleEnabled = async (mcp: McpResource) => {
+    if (!settings) return
+    const enabled = settings.mcpEnabled?.[mcp.name] ?? mcp.enabled ?? true
+    try {
+      await window.agentManager.saveSettings({
+        ...settings,
+        mcpEnabled: { ...(settings.mcpEnabled ?? {}), [mcp.name]: !enabled }
+      })
+      await loadSettings()
+      await refreshScan({ probeMcps: true })
+    } catch (e) {
+      await showMessage({
+        message: e instanceof Error ? e.message : 'Save failed',
+        type: 'error'
+      })
+    }
   }
 
   const handleDelete = async (mcp: McpResource) => {
@@ -163,7 +185,7 @@ export function McpsPage() {
         />
         <div className="flex-1 flex flex-col min-h-0 p-4 gap-4">
           <div className="space-y-1 shrink-0">
-            <p className="text-sm text-zinc-500">Platforms: {selected.platforms.join(', ')}</p>
+            <p className="text-sm text-zinc-500">IDE/CLI: {selected.platforms.join(', ')}</p>
             <p className="text-xs font-mono text-zinc-600 truncate" title={selected.configPath}>
               {selected.configPath}
             </p>
@@ -185,26 +207,24 @@ export function McpsPage() {
             />
           </div>
 
-          <div className="shrink-0 max-h-48 overflow-auto">
-            <h4 className="text-sm font-medium mb-2">Tools</h4>
-            {displayed.tools.length === 0 ? (
-              <p className="text-sm text-zinc-500">
-                No cached tools (status: {displayed.status})
-              </p>
-            ) : (
-              <ul className="text-sm space-y-2">
-                {displayed.tools.map((t) => (
-                  <li key={t.name} className="border-b border-zinc-800/80 pb-2 last:border-0">
-                    <div className="font-medium text-zinc-200">{t.name}</div>
-                    <div className="text-zinc-500 text-xs mt-0.5">
-                      {t.description?.trim() || '—'}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
+          <div className="shrink-0">
+            <button
+              type="button"
+              onClick={() =>
+                setToolsFor({
+                  name: displayed.name,
+                  status: displayed.status,
+                  tools: displayed.tools,
+                  error: displayed.error
+                })
+              }
+              className="px-3 py-1.5 text-sm bg-zinc-800 hover:bg-zinc-700 rounded"
+            >
+              Open tools ({displayed.tools.length})
+            </button>
           </div>
         </div>
+        {toolsFor && <McpToolsModal mcp={toolsFor} onClose={() => setToolsFor(null)} />}
       </div>
     )
   }
@@ -227,6 +247,7 @@ export function McpsPage() {
           <thead className="sticky top-0 bg-zinc-950 z-10">
             <tr className="border-b border-zinc-800 text-left text-zinc-400">
               <th className="px-4 py-2 font-medium">Name</th>
+              <th className="px-4 py-2 font-medium">Enabled</th>
               <th className="px-4 py-2 font-medium">Status</th>
               <th className="px-4 py-2 font-medium">Tools</th>
               <th className="px-4 py-2 font-medium">Directory</th>
@@ -236,14 +257,14 @@ export function McpsPage() {
           <tbody>
             {mcps.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-zinc-500">
+                <td colSpan={6} className="px-4 py-8 text-center text-zinc-500">
                   No MCP servers configured
                 </td>
               </tr>
             ) : (
               mcps.map((row) => {
-                const isOpen = expanded === row.name
                 const isTesting = testing === row.name
+                const enabled = settings?.mcpEnabled?.[row.name] ?? row.enabled ?? true
                 return (
                   <Fragment key={row.name}>
                     <tr
@@ -251,15 +272,29 @@ export function McpsPage() {
                     >
                       <td className="px-4 py-2.5 text-zinc-200 font-medium">{row.name}</td>
                       <td className="px-4 py-2.5">
+                        <Toggle
+                          checked={enabled}
+                          onChange={() => void handleToggleEnabled(row)}
+                          title={enabled ? `Disable ${row.name}` : `Enable ${row.name}`}
+                          ariaLabel={`${enabled ? 'Disable' : 'Enable'} ${row.name}`}
+                        />
+                      </td>
+                      <td className="px-4 py-2.5">
                         <div className="space-y-1">
-                          <span
-                            className={cn(
-                              'text-xs px-2 py-0.5 rounded inline-block',
-                              statusBadgeClass(row.status)
-                            )}
-                          >
-                            {row.status}
-                          </span>
+                          {enabled ? (
+                            <span
+                              className={cn(
+                                'text-xs px-2 py-0.5 rounded inline-block',
+                                statusBadgeClass(row.status)
+                              )}
+                            >
+                              {row.status}
+                            </span>
+                          ) : (
+                            <span className="text-xs px-2 py-0.5 rounded inline-block bg-zinc-800 text-zinc-400">
+                              disabled
+                            </span>
+                          )}
                           {row.error && (
                             <p
                               className="text-[11px] text-red-400 max-w-[280px] line-clamp-2"
@@ -273,17 +308,18 @@ export function McpsPage() {
                       <td className="px-4 py-2.5">
                         <button
                           type="button"
-                          onClick={() => setExpanded(isOpen ? null : row.name)}
-                          className="flex items-center gap-1 text-zinc-300 hover:text-zinc-100"
-                          title="Show tools"
+                          onClick={() =>
+                            setToolsFor({
+                              name: row.name,
+                              status: row.status,
+                              tools: row.tools,
+                              error: row.error
+                            })
+                          }
+                          className="text-zinc-300 hover:text-zinc-100 underline decoration-zinc-700 underline-offset-2"
+                          title="Open tools"
                         >
-                          <span>
-                            {row.tools.length} tool{row.tools.length === 1 ? '' : 's'}
-                          </span>
-                          <ChevronDown
-                            size={13}
-                            className={cn('transition-transform', isOpen && 'rotate-180')}
-                          />
+                          {row.tools.length} tool{row.tools.length === 1 ? '' : 's'}
                         </button>
                       </td>
                       <td className="px-4 py-2.5">
@@ -328,31 +364,6 @@ export function McpsPage() {
                         </div>
                       </td>
                     </tr>
-                    {isOpen && (
-                      <tr className="border-b border-zinc-900 bg-zinc-950/60">
-                        <td colSpan={5} className="px-4 py-3">
-                          {row.tools.length === 0 ? (
-                            <p className="text-xs text-zinc-500">
-                              No tools discovered — status: {row.status}. Run a test to probe this
-                              server for tools.
-                            </p>
-                          ) : (
-                            <ul className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
-                              {row.tools.map((tool) => (
-                                <li key={tool.name} className="min-w-0">
-                                  <span className="text-xs font-medium text-zinc-200">
-                                    {tool.name}
-                                  </span>
-                                  <span className="text-xs text-zinc-500 ml-2">
-                                    {tool.description?.trim() || '—'}
-                                  </span>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                        </td>
-                      </tr>
-                    )}
                   </Fragment>
                 )
               })
@@ -360,6 +371,8 @@ export function McpsPage() {
           </tbody>
         </table>
       </div>
+
+      {toolsFor && <McpToolsModal mcp={toolsFor} onClose={() => setToolsFor(null)} />}
 
       {addOpen && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">

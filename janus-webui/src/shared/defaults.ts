@@ -14,6 +14,7 @@ export function createDefaultSettings(): AppSettings {
     window: { maximized: true },
     startup: { runOnLogin: false },
     theme: 'vscode-dark',
+    font: 'Inter',
     dataPath: './data',
     platforms,
     projectRoots: [],
@@ -27,15 +28,13 @@ export function createDefaultSettings(): AppSettings {
       rules: {},
       mcps: {},
       hooks: {},
-      subAgents: {},
-      tools: {}
+      subAgents: {}
     },
     mandatoryForAllProjects: {
       skills: {},
       rules: {},
       hooks: {},
-      subAgents: {},
-      tools: {}
+      subAgents: {}
     },
     uiFilters: {}
   }

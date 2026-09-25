@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Janus web UI for managing Skills, Rules, MCPs, Hooks, Sub-agents, and Tools",
+  "description": "Janus web UI for managing Skills, Rules, MCPs, Hooks, and Sub-agents",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { UiFilterState } from '@shared/types'
 import { ResourceListView } from './ResourceListView'
 import { HooksListView } from './HooksListView'
-import { ResourceAssignView } from './ResourceAssignView'
 import { ResourceEditView } from './ResourceEditView'
 import { AddResourceModal, isCreatableResourceType } from './AddResourceModal'
 import { useAppStore } from '@renderer/stores/appStore'
@@ -13,7 +12,7 @@ import {
   type ListableResourceType
 } from '@renderer/lib/filter-utils'
 
-type ViewMode = 'list' | 'assign' | 'edit'
+type ViewMode = 'list' | 'edit'
 
 interface ResourcePageProps {
   title: string
@@ -103,7 +102,6 @@ export function ResourcePage({ title, subtitle, resourceType, showAdd = false }:
   }, [loadSummaries])
 
   const handleRename = async (oldName: string, newName: string) => {
-    if (resourceType === 'tool') return
     try {
       await window.agentManager.renameResource(resourceType, oldName, newName)
       await loadSummaries()
@@ -157,7 +155,6 @@ export function ResourcePage({ title, subtitle, resourceType, showAdd = false }:
     setActiveName(null)
   }
 
-  const canAssign = resourceType === 'rule'
   const canApplyAll = resourceType === 'rule'
 
   const listProps = {
@@ -170,14 +167,6 @@ export function ResourcePage({ title, subtitle, resourceType, showAdd = false }:
     onRefresh: () => void refreshScan(),
     onAdd: showAdd && isCreatableResourceType(resourceType) ? () => setAddOpen(true) : undefined,
     onApplyAll: canApplyAll ? () => void handleApplyAll() : undefined,
-    ...(canAssign
-      ? {
-          onAssign: (name: string) => {
-            setActiveName(name)
-            setView('assign')
-          }
-        }
-      : {})
   }
 
   return (
@@ -203,16 +192,6 @@ export function ResourcePage({ title, subtitle, resourceType, showAdd = false }:
           />
         )}
       </div>
-      {view === 'assign' && activeName && canAssign && (
-        <div className="absolute inset-0 z-10 flex flex-col bg-zinc-950">
-          <ResourceAssignView
-            resourceType={resourceType}
-            resourceName={activeName}
-            onBack={backToList}
-            onSaved={() => void refreshScan()}
-          />
-        </div>
-      )}
       {view === 'edit' && activeName && (
         <div className="absolute inset-0 z-10 flex flex-col bg-zinc-950">
           <ResourceEditView

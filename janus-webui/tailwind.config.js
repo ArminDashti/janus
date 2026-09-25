@@ -6,7 +6,7 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Segoe UI', 'Consolas', 'system-ui', '-apple-system', 'sans-serif']
+        sans: ["var(--app-font, 'Inter')", 'Consolas', 'system-ui', '-apple-system', 'sans-serif']
       },
       colors: {
         // Surfaces (VS Code Dark+ names kept; values come from CSS variables)
