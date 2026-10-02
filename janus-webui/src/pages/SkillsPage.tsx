@@ -1,400 +1,242 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Search, File, FileCode, FileJson, FileText, Trash } from 'lucide-react'
-import type { ResourceGroupSummary, SkillResource, UiSearchField } from '@shared/types'
-import { cn } from '@renderer/lib/utils'
-import { MarkdownEditor } from '@renderer/components/MarkdownEditor'
-import { ProjectPanel } from '@renderer/components/resources/ProjectPanel'
+import { Search } from 'lucide-react'
+import type { ProjectMatrixRow, ResourceGroupSummary } from '@shared/types'
 import { ThreePanelLayout } from '@renderer/components/layout/ThreePanelLayout'
-import { useAppStore } from '@renderer/stores/appStore'
+import { ResourceEditView } from '@renderer/components/resources/ResourceEditView'
 import { showMessage } from '@renderer/stores/messageStore'
-import { isMarkdownFile } from '@shared/utils.browser'
+import { cn } from '@renderer/lib/utils'
 
-// ─── helpers ────────────────────────────────────────────────────────────────
-
-function skillDisplayName(name: string): string {
-  return name.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? name
+function resourceKey(row: ResourceGroupSummary): string {
+  return row.groupKey || row.name
 }
 
-function fileBaseName(path: string): string {
-  return path.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? path
-}
+export function SkillsPage() {
+  const [summaries, setSummaries] = useState<ResourceGroupSummary[]>([])
+  const [search, setSearch] = useState('')
+  const [selectedSkillKey, setSelectedSkillKey] = useState<string | null>(null)
+  const [projectRows, setProjectRows] = useState<ProjectMatrixRow[]>([])
+  const [selectedProjectIds, setSelectedProjectIds] = useState<Set<string>>(new Set())
+  const [saving, setSaving] = useState(false)
+  const [loading, setLoading] = useState(true)
 
-const CODE_EXTENSIONS = new Set([
-  'ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'py', 'sh', 'bash', 'zsh', 'ps1',
-  'yaml', 'yml', 'toml', 'jsonc', 'css', 'scss', 'html', 'sql', 'rb', 'go', 'rs'
-])
-
-/** Icon for a skill file tab based on its extension. */
-function fileIcon(path: string): typeof File {
-  const ext = fileBaseName(path).split('.').pop()?.toLowerCase() ?? ''
-  if (ext === 'md' || ext === 'mdx') return FileText
-  if (ext === 'json') return FileJson
-  if (CODE_EXTENSIONS.has(ext)) return FileCode
-  return File
-}
-
-// ─── Left: skill list ───────────────────────────────────────────────────────
-
-interface SkillListProps {
-  skills: ResourceGroupSummary[]
-  loading: boolean
-  selectedName: string | null
-  onSelect: (name: string) => void
-  onDelete: (row: ResourceGroupSummary) => void
-  search: string
-  onSearch: (v: string) => void
-  searchField: UiSearchField
-  onSearchFieldChange: (f: UiSearchField) => void
-}
-
-const SEARCH_FIELD_OPTIONS: { value: UiSearchField; label: string }[] = [
-  { value: 'name', label: 'Name' },
-  { value: 'tags', label: 'Tags' },
-  { value: 'category', label: 'Category' }
-]
-
-function SkillList({
-  skills,
-  loading,
-  selectedName,
-  onSelect,
-  onDelete,
-  search,
-  onSearch,
-  searchField,
-  onSearchFieldChange
-}: SkillListProps) {
-  return (
-    <aside className="w-full h-full flex flex-col">
-      <div className="px-3 py-2 border-b border-zinc-800">
-        <h2 className="text-xs font-medium text-zinc-400 mb-2">Skills · {skills.length}</h2>
-        <div className="flex gap-1.5">
-          <div className="relative flex-1 min-w-0">
-            <Search size={13} className="absolute left-2 top-1/2 -translate-y-1/2 text-zinc-500" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => onSearch(e.target.value)}
-              placeholder="Filter skills…"
-              className="w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1.5 pl-6 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500"
-            />
-          </div>
-          <select
-            value={searchField}
-            onChange={(e) => onSearchFieldChange(e.target.value as UiSearchField)}
-            aria-label="Search field"
-            title="Search in"
-            className="shrink-0 bg-zinc-900 border border-zinc-700 rounded px-1.5 py-1.5 text-xs text-zinc-300 cursor-pointer hover:bg-zinc-800 focus:outline-none focus:border-zinc-500"
-          >
-            {SEARCH_FIELD_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-      <nav className="flex-1 overflow-y-auto py-1">
-        {loading && skills.length === 0 ? (
-          <p className="px-3 py-4 text-xs text-zinc-500 text-center">Loading…</p>
-        ) : skills.length === 0 ? (
-          <p className="px-3 py-4 text-xs text-zinc-500 text-center">No skills found</p>
-        ) : (
-          skills.map((s) => {
-            const key = s.groupKey || s.name
-            const isSelected = key === selectedName
-            return (
-              <div
-                key={key}
-                className={cn(
-                  'group flex items-center border-l-2 transition-colors',
-                  isSelected
-                    ? 'bg-blue-600/20 border-blue-500'
-                    : 'border-transparent hover:bg-zinc-800'
-                )}
-              >
-                <button
-                  type="button"
-                  onClick={() => onSelect(key)}
-                  className={cn(
-                    'flex-1 min-w-0 text-left px-3 py-2 text-xs truncate flex items-center gap-1.5',
-                    isSelected ? 'text-blue-300' : 'text-zinc-300'
-                  )}
-                  title={s.name}
-                >
-                  <span className="truncate">{skillDisplayName(s.name)}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onDelete(s)
-                  }}
-                  className="p-1.5 mr-1 rounded text-zinc-600 opacity-0 group-hover:opacity-100 hover:text-red-400 hover:bg-zinc-700/60 transition-opacity"
-                  title={`Delete ${skillDisplayName(s.name)}`}
-                >
-                  <Trash size={12} strokeWidth={1.75} />
-                </button>
-              </div>
-            )
-          })
-        )}
-      </nav>
-    </aside>
-  )
-}
-
-// ─── Right: skill content ───────────────────────────────────────────────────
-
-interface SkillContentProps {
-  skillName: string | null
-}
-
-function SkillContent({ skillName }: SkillContentProps) {
-  const [resource, setResource] = useState<SkillResource | null>(null)
-  const [selectedFile, setSelectedFile] = useState<string | null>(null)
-  const [content, setContent] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [notFound, setNotFound] = useState(false)
-
-  const load = useCallback(async (name: string) => {
+  const loadSkills = useCallback(async () => {
     setLoading(true)
-    setNotFound(false)
     try {
-      const canonical = await window.agentManager.getCanonicalResource('skill', name)
-      if (!canonical) {
-        setResource(null)
-        setNotFound(true)
-        return
-      }
-      const skill = canonical as SkillResource
-      setResource(skill)
-      const file = skill.skillMdPath || skill.files[0] || ''
-      setSelectedFile(file || null)
-      setContent(file ? await window.agentManager.readFile(file) : '')
-    } catch {
-      setResource(null)
-      setNotFound(true)
+      const stats = await window.agentManager.getResourceStats('skill')
+      setSummaries(stats)
+      setSelectedSkillKey((current) => {
+        if (current && stats.some((row) => resourceKey(row) === current)) return current
+        return stats[0] ? resourceKey(stats[0]) : null
+      })
     } finally {
       setLoading(false)
     }
   }, [])
 
   useEffect(() => {
-    if (skillName) void load(skillName)
-    else {
-      setResource(null)
-      setSelectedFile(null)
-      setContent('')
-      setNotFound(false)
-    }
-  }, [skillName, load])
+    void loadSkills()
+    const handler = () => void loadSkills()
+    window.addEventListener('scan-changed', handler)
+    return () => window.removeEventListener('scan-changed', handler)
+  }, [loadSkills])
 
-  const openFile = async (path: string) => {
-    setSelectedFile(path)
-    setContent(await window.agentManager.readFile(path))
-  }
-
-  const saveFile = async (filePath: string, value: string) => {
-    const confirmed = await showMessage({
-      message: `Save changes to ${fileBaseName(filePath)}?`,
-      confirm: true
+  const filteredSkills = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return summaries
+    return summaries.filter((row) => {
+      const haystack = [row.name, row.description].join(' ').toLowerCase()
+      return haystack.includes(q)
     })
-    if (!confirmed) return
-    const isSkillMd = fileBaseName(filePath) === 'SKILL.md'
-    if (isSkillMd && skillName) {
-      await window.agentManager.writeSkillMd(filePath, value, skillName)
-    } else {
-      await window.agentManager.writeFile(filePath, value)
+  }, [search, summaries])
+
+  useEffect(() => {
+    if (!selectedSkillKey) {
+      setProjectRows([])
+      setSelectedProjectIds(new Set())
+      return
+    }
+
+    let active = true
+    const loadProjectAssignments = async () => {
+      try {
+        const rows = await window.agentManager.getProjectMatrix('skill', selectedSkillKey)
+        if (!active) return
+        setProjectRows(rows)
+        setSelectedProjectIds(new Set(rows.filter((row) => row.assigned).map((row) => row.projectId)))
+      } catch (error) {
+        if (!active) return
+        await showMessage({
+          message: error instanceof Error ? error.message : 'Unable to load project assignments',
+          type: 'error'
+        })
+      }
+    }
+
+    void loadProjectAssignments()
+    return () => {
+      active = false
+    }
+  }, [selectedSkillKey])
+
+  const toggleProject = (projectId: string) => {
+    setSelectedProjectIds((current) => {
+      const next = new Set(current)
+      if (next.has(projectId)) next.delete(projectId)
+      else next.add(projectId)
+      return next
+    })
+  }
+
+  const handleSaveAssignments = async () => {
+    if (!selectedSkillKey) return
+
+    try {
+      setSaving(true)
+      await window.agentManager.applyProjectAssignment('skill', selectedSkillKey, [...selectedProjectIds])
+      await loadSkills()
+    } catch (error) {
+      await showMessage({
+        message: error instanceof Error ? error.message : 'Unable to save skill assignments',
+        type: 'error'
+      })
+    } finally {
+      setSaving(false)
     }
   }
 
-  if (!skillName) {
-    return (
-      <div className="h-full flex flex-col items-center justify-center gap-2 text-center px-6">
-        <FileText size={24} className="text-zinc-600" />
-        <p className="text-sm text-zinc-500">Select a skill to view its content</p>
-      </div>
-    )
-  }
+  const leftPanel = (
+    <div className="flex h-full min-h-0 flex-col bg-zinc-950">
+      <header className="border-b border-zinc-800 px-4 py-3">
+        <h2 className="text-base font-medium text-zinc-100">Skills</h2>
+      </header>
 
-  if (loading) {
-    return (
-      <div className="h-full flex items-center justify-center text-zinc-500 text-sm">
-        Loading skill content…
-      </div>
-    )
-  }
-
-  if (notFound || !resource) {
-    return (
-      <div className="h-full flex items-center justify-center text-zinc-500 text-sm">
-        Skill content not found
-      </div>
-    )
-  }
-
-  const files = resource.files ?? []
-  const editable =
-    selectedFile != null && (isMarkdownFile(selectedFile) || selectedFile.endsWith('.py'))
-
-  return (
-    <div className="h-full flex flex-col min-h-0">
-      {files.length > 1 && (
-        <div className="flex gap-1 px-3 py-2 border-b border-zinc-800 overflow-x-auto shrink-0">
-          {files.map((f) => {
-            const Icon = fileIcon(f)
-            return (
-              <button
-                key={f}
-                type="button"
-                onClick={() => void openFile(f)}
-                title={f}
-                className={cn(
-                  'inline-flex items-center gap-1 px-2 py-1 text-[13px] rounded whitespace-nowrap transition-colors',
-                  f === selectedFile
-                    ? 'bg-blue-600/20 text-blue-300'
-                    : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'
-                )}
-              >
-                <Icon size={12} className="shrink-0" />
-                {fileBaseName(f)}
-              </button>
-            )
-          })}
-        </div>
-      )}
-
-      <div className="flex-1 min-h-0 p-3 overflow-hidden">
-        {!selectedFile ? (
-          <div className="h-full flex items-center justify-center text-zinc-500 text-sm">
-            Select a file
-          </div>
-        ) : editable ? (
-          <MarkdownEditor
-            key={selectedFile}
-            filePath={selectedFile}
-            value={content}
-            onChange={setContent}
-            onSave={(v) => saveFile(selectedFile, v)}
+      <div className="border-b border-zinc-800 px-3 py-2">
+        <label className="flex items-center gap-2 rounded-md border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-sm text-zinc-300">
+          <Search size={14} className="text-zinc-500" />
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search skills"
+            className="w-full bg-transparent text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none"
           />
+        </label>
+      </div>
+
+      <div className="flex-1 min-h-0 overflow-y-auto p-2">
+        {loading ? (
+          <div className="flex h-full items-center justify-center text-sm text-zinc-500">Loading…</div>
+        ) : filteredSkills.length === 0 ? (
+          <div className="flex h-full items-center justify-center px-4 text-center text-sm text-zinc-500">
+            No matching skills
+          </div>
         ) : (
-          <pre className="h-full overflow-auto text-xs text-zinc-300 bg-zinc-900 border border-zinc-800 rounded-lg p-3 whitespace-pre-wrap break-words">
-            {content}
-          </pre>
+          <div className="space-y-1">
+            {filteredSkills.map((row) => {
+              const key = resourceKey(row)
+              const active = selectedSkillKey === key
+
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setSelectedSkillKey(key)}
+                  className={cn(
+                    'w-full rounded-md border px-3 py-2 text-left transition-colors',
+                    active
+                      ? 'border-blue-500 bg-blue-500/10 text-blue-300'
+                      : 'border-transparent bg-zinc-900/60 text-zinc-300 hover:border-zinc-700 hover:bg-zinc-900'
+                  )}
+                >
+                  <div className="font-medium">{row.name}</div>
+                  {row.description && (
+                    <div className="mt-1 line-clamp-2 text-xs text-zinc-400">{row.description}</div>
+                  )}
+                </button>
+              )
+            })}
+          </div>
         )}
       </div>
     </div>
   )
-}
 
-// ─── Main SkillsPage: three-pane layout ─────────────────────────────────────
+  const selectedSkill = summaries.find((row) => resourceKey(row) === selectedSkillKey)
 
-export function SkillsPage() {
-  const { refreshScan } = useAppStore()
-  const [skills, setSkills] = useState<ResourceGroupSummary[]>([])
-  const [loading, setLoading] = useState(true)
-  const [selected, setSelected] = useState<string | null>(null)
-  const [search, setSearch] = useState('')
-  const [searchField, setSearchField] = useState<UiSearchField>('name')
+  const middlePanel = selectedSkillKey ? (
+    <div className="flex h-full min-h-0 flex-col bg-zinc-950">
+      <header className="border-b border-zinc-800 px-4 py-3">
+        <h2 className="text-base font-medium text-zinc-100">Projects</h2>
+        <p className="mt-1 text-xs text-zinc-500">
+          {selectedSkill ? selectedSkill.name : 'Skill'} assignments
+        </p>
+      </header>
 
-  const load = useCallback(async (opts?: { soft?: boolean }) => {
-    const soft = opts?.soft && skills.length > 0
-    if (!soft) setLoading(true)
-    try {
-      const stats = await window.agentManager.getResourceStats('skill')
-      setSkills(stats)
-      // Auto-select first skill on initial load
-      if (!soft && stats.length > 0) {
-        setSelected((prev) => prev ?? (stats[0].groupKey || stats[0].name))
-      }
-    } finally {
-      if (!soft) setLoading(false)
-    }
-  }, [skills.length])
+      <div className="flex-1 min-h-0 overflow-y-auto p-3">
+        {projectRows.length === 0 ? (
+          <div className="flex h-full items-center justify-center text-sm text-zinc-500">
+            No projects configured.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {projectRows.map((row) => (
+              <label
+                key={row.projectId}
+                className="flex cursor-pointer items-center justify-between gap-3 rounded-md border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-sm text-zinc-200 hover:border-zinc-700"
+              >
+                <span className="truncate">{row.projectName}</span>
+                <input
+                  type="checkbox"
+                  checked={selectedProjectIds.has(row.projectId)}
+                  onChange={() => toggleProject(row.projectId)}
+                  className="h-4 w-4 accent-blue-600"
+                />
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
 
-  useEffect(() => {
-    void load()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+      <div className="border-t border-zinc-800 p-3">
+        <button
+          type="button"
+          onClick={() => void handleSaveAssignments()}
+          disabled={saving || projectRows.length === 0}
+          className="w-full rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400"
+        >
+          {saving ? 'Saving…' : 'Apply assignments'}
+        </button>
+      </div>
+    </div>
+  ) : (
+    <div className="flex h-full items-center justify-center text-sm text-zinc-500">
+      Select a skill
+    </div>
+  )
 
-  useEffect(() => {
-    const handler = () => void load({ soft: true })
-    window.addEventListener('scan-changed', handler)
-    return () => window.removeEventListener('scan-changed', handler)
-  }, [load])
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
-    const list = q
-      ? skills.filter((s) => {
-          const haystack =
-            searchField === 'tags'
-              ? (s.tags ?? []).join(' ')
-              : searchField === 'category'
-                ? (s.category ?? '')
-                : `${s.name} ${s.description}`
-          return haystack.toLowerCase().includes(q)
-        })
-      : skills
-    return [...list].sort((a, b) =>
-      skillDisplayName(a.name).localeCompare(skillDisplayName(b.name))
-    )
-  }, [skills, search, searchField])
-
-  const handleDelete = useCallback(
-    async (row: ResourceGroupSummary) => {
-      const key = row.groupKey || row.name
-      const confirmed = await showMessage({
-        message: `Delete "${skillDisplayName(row.name)}" from all locations? Items are kept under .trash.`,
-        confirm: true,
-        type: 'error',
-        title: 'Delete skill'
-      })
-      if (!confirmed) return
-      try {
-        await window.agentManager.deleteResource('skill', key)
-        if (key === selected) setSelected(null)
-        await load({ soft: true })
-        refreshScan()
-      } catch (e) {
-        await showMessage({
-          message: e instanceof Error ? e.message : 'Delete failed',
-          type: 'error'
-        })
-      }
-    },
-    [selected, load, refreshScan]
+  const rightPanel = selectedSkillKey ? (
+    <ResourceEditView
+      resourceType="skill"
+      resourceName={selectedSkillKey}
+      onBack={() => setSelectedSkillKey(null)}
+    />
+  ) : (
+    <div className="flex h-full items-center justify-center text-sm text-zinc-500">
+      Pick a skill to inspect its content
+    </div>
   )
 
   return (
-    <div className="flex flex-col h-full min-h-0 overflow-hidden">
-      <ThreePanelLayout
-        autoSaveId="skills-three-panel-v2"
-        defaultLeftSize={22}
-        defaultMiddleSize={24}
-        left={
-          <SkillList
-            skills={filtered}
-            loading={loading}
-            selectedName={selected}
-            onSelect={setSelected}
-            onDelete={(row) => void handleDelete(row)}
-            search={search}
-            onSearch={setSearch}
-            searchField={searchField}
-            onSearchFieldChange={setSearchField}
-          />
-        }
-        middle={
-          <ProjectPanel
-            resourceType="skill"
-            resourceName={selected}
-            resourceLabel="skill"
-            onRefresh={() => void refreshScan()}
-          />
-        }
-        right={<SkillContent skillName={selected} />}
-      />
-    </div>
+    <ThreePanelLayout
+      autoSaveId="skills-three-panel-layout"
+      defaultLeftSize={28}
+      defaultMiddleSize={30}
+      minLeftSize={24}
+      minMiddleSize={24}
+      maxLeftSize={40}
+      maxMiddleSize={42}
+      left={leftPanel}
+      middle={middlePanel}
+      right={rightPanel}
+    />
   )
 }
