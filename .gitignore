@@ -13,3 +13,13 @@
 
 # auto-managed large-file section (>5MB)
 # (paths appended by commit-push-to-github)
+
+# Auto-managed: files larger than 5 MB
+.gitnexus/lbug
+janus-api/node_modules/@cursor/sdk-win32-x64/bin/rg.exe
+janus-api/node_modules/@esbuild/win32-x64/esbuild.exe
+janus-api/node_modules/typescript/lib/_tsc.js
+janus-api/node_modules/typescript/lib/typescript.js
+janus-webui/node_modules/@esbuild/win32-x64/esbuild.exe
+janus-webui/node_modules/typescript/lib/_tsc.js
+janus-webui/node_modules/typescript/lib/typescript.js
