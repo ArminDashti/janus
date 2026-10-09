@@ -2,27 +2,19 @@ import { existsSync } from 'fs'
 import { basename, dirname, join } from 'path'
 import type {
   AppSettings,
-  HookResource,
-  McpResource,
   ProjectInfo,
   ResourceSource,
   ResourceType,
-  RuleResource,
-  ScanResult,
-  SkillResource,
-  SubAgentResource
+  ScanResult
 } from '../shared/types'
 import {
   parseFrontmatter,
   skillContentHash,
   stableId,
   extractResourceMeta,
-  extractHookMeta,
   metaTimestampToIso,
   validateSkillStructure,
-  validateRuleStructure,
-  validateSubAgentStructure,
-  validateHookStructure
+  validateSubAgentStructure
 } from '../shared/utils'
 import { fileService } from './file.service'
 import { getAdapter } from '../platforms'
@@ -32,21 +24,35 @@ import { probeMcpServers } from './mcp-probe.service'
 import { agentDebugLog } from './debug-log'
 import { seedSkillContentHashes } from './skill-sync.service'
 import { reconcileSharedUuids } from './uuid-reconcile.service'
+import { reconcileSkillNames } from './skill-name-sync.service'
 
 const PLATFORM_SCAN_TYPES: ResourceType[] = ['mcp']
-/** Global skills + rules under each enabled platform root (rootPath/skills, rootPath/rules). */
-const GLOBAL_SCAN_TYPES: ResourceType[] = ['skill', 'rule']
-/** Cursor root (~/.cursor) additionally hosts hooks and sub-agents. */
-const CURSOR_GLOBAL_SCAN_TYPES: ResourceType[] = ['skill', 'rule', 'hook', 'subAgent']
+/** Global skills under each enabled platform root (rootPath/skills). */
+const GLOBAL_SCAN_TYPES: ResourceType[] = ['skill']
+/** Cursor root (~/.cursor) additionally hosts sub-agents. */
+const CURSOR_GLOBAL_SCAN_TYPES: ResourceType[] = ['skill', 'subAgent']
 
 export interface ScanAllOptions {
   /** Spawn MCP processes to check connectivity. Expensive; default false. */
   probeMcps?: boolean
 }
 
+/** A cached scan older than this triggers a background refresh on read. */
+const READ_STALE_MS = 30_000
+/** Unconditional background re-scan interval even without watcher events. */
+const BACKGROUND_REFRESH_MS = 120_000
+/** Coalesce watcher bursts into a single refresh. */
+const REFRESH_DEBOUNCE_MS = 500
+
 export class ScannerService {
   private inflight: Promise<ScanResult> | null = null
   private inflightProbe = false
+  private pendingAfterInflight = false
+  private cached: ScanResult | null = null
+  private cachedAt = 0
+  private refreshTimer: ReturnType<typeof setTimeout> | null = null
+  private refreshSettings: AppSettings | null = null
+  private backgroundTimer: ReturnType<typeof setInterval> | null = null
 
   async scanAll(settings: AppSettings, options: ScanAllOptions = {}): Promise<ScanResult> {
     const probeMcps = options.probeMcps === true
@@ -71,8 +77,78 @@ export class ScannerService {
       if (this.inflight === run) {
         this.inflight = null
         this.inflightProbe = false
+        if (this.pendingAfterInflight && this.refreshSettings) {
+          this.pendingAfterInflight = false
+          this.scheduleBackgroundRefresh(this.refreshSettings)
+        }
       }
     }
+  }
+
+  /** Latest completed scan, or null before the first scan finishes. */
+  getCachedScan(): ScanResult | null {
+    return this.cached
+  }
+
+  /**
+   * Read path used by page-load endpoints: serve the latest cached scan
+   * immediately and refresh in the background when stale. Falls back to a
+   * synchronous scan only on cold start (no cache yet).
+   */
+  async getScanForRead(settings: AppSettings): Promise<ScanResult> {
+    if (!this.cached) {
+      return this.scanAll(settings)
+    }
+    if (Date.now() - this.cachedAt > READ_STALE_MS) {
+      this.scheduleBackgroundRefresh(settings)
+    }
+    return this.cached
+  }
+
+  /** Run a scan now and update the cache (used after in-app mutations). */
+  async refresh(settings: AppSettings): Promise<ScanResult> {
+    return this.scanAll(settings)
+  }
+
+  /** Queue a debounced, non-blocking cache refresh. */
+  scheduleBackgroundRefresh(settings: AppSettings): void {
+    this.refreshSettings = settings
+    if (this.inflight) {
+      this.pendingAfterInflight = true
+      return
+    }
+    if (this.refreshTimer) clearTimeout(this.refreshTimer)
+    this.refreshTimer = setTimeout(() => {
+      this.refreshTimer = null
+      const target = this.refreshSettings
+      if (!target) return
+      void this.scanAll(target).catch((err) => {
+        console.error('Background scan refresh failed:', err)
+      })
+    }, REFRESH_DEBOUNCE_MS)
+  }
+
+  /** Warm the cache at boot and keep it current on a fixed interval. */
+  startBackgroundUpdates(getSettings: () => AppSettings): void {
+    if (this.backgroundTimer) return
+    void this.scanAll(getSettings()).catch((err) => {
+      console.error('Initial background scan failed:', err)
+    })
+    this.backgroundTimer = setInterval(() => {
+      this.scheduleBackgroundRefresh(getSettings())
+    }, BACKGROUND_REFRESH_MS)
+  }
+
+  stopBackgroundUpdates(): void {
+    if (this.backgroundTimer) {
+      clearInterval(this.backgroundTimer)
+      this.backgroundTimer = null
+    }
+    if (this.refreshTimer) {
+      clearTimeout(this.refreshTimer)
+      this.refreshTimer = null
+    }
+    this.pendingAfterInflight = false
   }
 
   private async executeScanAll(settings: AppSettings, probeMcps: boolean): Promise<ScanResult> {
@@ -90,9 +166,7 @@ export class ScannerService {
 
     const result: ScanResult = {
       skills: [],
-      rules: [],
       mcps: [],
-      hooks: [],
       subAgents: []
     }
 
@@ -111,8 +185,8 @@ export class ScannerService {
       // MCPs / tools from the platform root (all platforms)
       await this.scanPaths(adapter, paths, source, settings, result, PLATFORM_SCAN_TYPES)
 
-      // Global Skills / Rules from every enabled platform root (surface as "<Name> (Global)"
-      // rows in the Projects panel). Cursor root also hosts hooks and sub-agents; its skills
+      // Global Skills from every enabled platform root (surface as "<Name> (Global)"
+      // rows in the Projects panel). Cursor root also hosts sub-agents; its skills
       // load exclusively from ~/.cursor/skills (not skills-cursor).
       const isCursor = platform.id === 'cursor'
       const globalPaths: PlatformPaths = isCursor
@@ -153,15 +227,15 @@ export class ScannerService {
       fsScanMs,
       skills: result.skills.length,
       uniqueSkillNames: [...new Set(result.skills.map((s) => s.name))].length,
-      rules: result.rules.length,
       mcps: result.mcps.length,
-      hooks: result.hooks.length,
       subAgents: result.subAgents.length,
       probeMcps
     })
     // #endregion
 
     await reconcileSharedUuids(result)
+    // Reflect skills renamed outside the app (folder <-> SKILL.md name sync).
+    await reconcileSkillNames(result)
 
     if (probeMcps) {
       await this.probeMcps(result)
@@ -180,6 +254,9 @@ export class ScannerService {
       runId: 'post-fix'
     })
     // #endregion
+
+    this.cached = result
+    this.cachedAt = Date.now()
 
     return result
   }
@@ -282,31 +359,11 @@ export class ScannerService {
       }
     }
 
-    if (canScan('rule') && supportsResource(adapter, 'rule') && existsSync(paths.rulesDir)) {
-      const files = await fileService.listFilesRecursive(paths.rulesDir)
-      for (const file of files) {
-        if (!/\.(mdc|md)$/i.test(file)) continue
-        const text = await fileService.readText(file)
-        const { frontmatter } = parseFrontmatter(text)
-        const meta = extractResourceMeta(frontmatter)
-        const structure = validateRuleStructure(frontmatter)
-        const id = meta.uuid || `pending:${stableId(source.id, file)}`
-        result.rules.push({
-          id,
-          name: basename(file),
-          filePath: file,
-          uuid: meta.uuid ?? '',
-          lastUpdatedAt: metaTimestampToIso(meta.last_updated),
-          structureOk: structure.ok,
-          structureWarning: structure.ok ? undefined : structure.reason,
-          source,
-          enabled: settings.assignments.rules[id]?.includes(source.id) ?? true
-        })
-      }
-    }
 
     if (canScan('mcp') && supportsResource(adapter, 'mcp') && existsSync(paths.mcpConfigPath)) {
       try {
+        const mtimeMs = await fileService.getMtime(paths.mcpConfigPath)
+        const lastUpdatedAt = mtimeMs ? new Date(mtimeMs).toISOString() : null
         const raw = await fileService.readText(paths.mcpConfigPath)
         const parsed = JSON.parse(raw) as { mcpServers?: Record<string, Record<string, unknown>> }
         for (const [name, params] of Object.entries(parsed.mcpServers ?? {})) {
@@ -319,6 +376,7 @@ export class ScannerService {
             status: 'unknown',
             platforms: [source.id],
             configPath: paths.mcpConfigPath,
+            lastUpdatedAt,
             enabled: settings.mcpEnabled?.[name] ?? true
           })
         }
@@ -327,50 +385,6 @@ export class ScannerService {
       }
     }
 
-    if (
-      canScan('hook') &&
-      supportsResource(adapter, 'hook') &&
-      paths.hooksConfigPath &&
-      existsSync(paths.hooksConfigPath)
-    ) {
-      try {
-        const raw = await fileService.readText(paths.hooksConfigPath)
-        const parsed = JSON.parse(raw) as {
-          hooks?: Record<string, Array<Record<string, unknown>>>
-        }
-        const scriptFiles = paths.hooksScriptsDir
-          ? await fileService.listFilesRecursive(paths.hooksScriptsDir)
-          : []
-
-        for (const [event, entries] of Object.entries(parsed.hooks ?? {})) {
-          for (const entry of entries) {
-            const command = String(entry.command ?? '')
-            const hookName = `${event}:${basename(command) || 'hook'}`
-            const meta = extractHookMeta(entry)
-            const structure = validateHookStructure(entry)
-            const id = meta.uuid || `pending:${stableId(source.id, hookName)}`
-            result.hooks.push({
-              id,
-              event,
-              name: hookName,
-              configPath: paths.hooksConfigPath,
-              definition: entry as HookResource['definition'],
-              uuid: meta.uuid ?? '',
-              lastUpdatedAt: metaTimestampToIso(meta.last_updated),
-              structureOk: structure.ok,
-              structureWarning: structure.ok ? undefined : structure.reason,
-              scriptPath: command ? join(paths.hooksScriptsDir!, basename(command)) : undefined,
-              scriptFiles,
-              source,
-              enabled: settings.assignments.hooks[id]?.includes(source.id) ?? true
-            })
-          }
-        }
-        // UUID assignment is deferred to reconcileSharedUuids (shared across projects)
-      } catch {
-        // ignore
-      }
-    }
 
     if (
       canScan('subAgent') &&

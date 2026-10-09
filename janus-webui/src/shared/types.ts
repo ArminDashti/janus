@@ -8,13 +8,12 @@ export type PlatformId =
   | 'hermes'
   | 'grok'
   | 'kiro'
+  | 'claude'
+  | 'cline'
+  | 'copilot'
+  | 'openclaw'
 
-export type ResourceType =
-  | 'skill'
-  | 'rule'
-  | 'mcp'
-  | 'hook'
-  | 'subAgent'
+export type ResourceType = 'skill' | 'mcp' | 'subAgent'
 
 export interface ResourceSource {
   type: 'platform' | 'project' | 'local'
@@ -79,19 +78,55 @@ export interface AppSettings {
   uiFilters: Record<string, Partial<UiFilterState>>
   /** Per-MCP enabled state keyed by MCP name (absent ⇒ enabled). */
   mcpEnabled?: Record<string, boolean>
+  updates: {
+    /** Fetch origin and compare against the running install on every service boot. */
+    checkOnStartup: boolean
+  }
   assignments: {
     skills: Record<string, string[]>
-    rules: Record<string, string[]>
     mcps: Record<string, string[]>
-    hooks: Record<string, string[]>
     subAgents: Record<string, string[]>
   }
   mandatoryForAllProjects: {
     skills: Record<string, boolean>
-    rules: Record<string, boolean>
-    hooks: Record<string, boolean>
     subAgents: Record<string, boolean>
   }
+}
+
+/** One upstream commit pending in the Janus install checkout. */
+export interface UpdateCommitInfo {
+  sha: string
+  author: string
+  date: string
+  subject: string
+}
+
+/** Result of `GET /api/updates/check` (git fetch + ahead/behind against origin). */
+export interface UpdateCheckResult {
+  currentVersion: string
+  branch: string
+  remoteUrl: string | null
+  currentSha: string
+  remoteSha: string | null
+  behind: number
+  ahead: number
+  /** Working tree has uncommitted changes; installing is blocked. */
+  dirty: boolean
+  hasUpdate: boolean
+  incoming: UpdateCommitInfo[]
+  checkedAt: string
+  /** Present when the install is not a git checkout or git/network failed. */
+  error?: string
+}
+
+/** Result of `POST /api/updates/apply` (fast-forward pull of the Janus install). */
+export interface UpdateApplyResult {
+  updated: boolean
+  fromSha: string
+  toSha: string
+  message: string
+  /** True when code changed on disk; the service must restart to load it. */
+  restartRequired: boolean
 }
 
 export interface SkillResource {
@@ -112,19 +147,6 @@ export interface SkillResource {
   enabled: boolean
 }
 
-export interface RuleResource {
-  id: string
-  name: string
-  filePath: string
-  /** Stable identity from frontmatter metadata.uuid */
-  uuid: string
-  lastUpdatedAt: string | null
-  structureOk: boolean
-  structureWarning?: string
-  source: ResourceSource
-  enabled: boolean
-}
-
 export interface McpTool {
   name: string
   description?: string
@@ -141,6 +163,8 @@ export interface McpResource {
   error?: string
   platforms: string[]
   configPath: string
+  /** Config file (mcp.json) modification time from scan. */
+  lastUpdatedAt: string | null
   /** False when disabled via the MCPs page (settings.mcpEnabled). */
   enabled: boolean
 }
@@ -150,37 +174,6 @@ export interface McpProbeResult {
   status: McpResource['status']
   tools: McpTool[]
   error?: string
-}
-
-export interface HookDefinition {
-  command?: string
-  type?: 'command' | 'prompt'
-  matcher?: string
-  timeout?: number
-  failClosed?: boolean
-  loop_limit?: number
-  version?: string
-  author?: string
-  tags?: string[]
-  last_updated?: string
-  uuid?: string
-}
-
-export interface HookResource {
-  id: string
-  event: string
-  name: string
-  configPath: string
-  definition: HookDefinition
-  /** Stable identity from hooks.json entry uuid */
-  uuid: string
-  lastUpdatedAt: string | null
-  structureOk: boolean
-  structureWarning?: string
-  scriptPath?: string
-  scriptFiles: string[]
-  source: ResourceSource
-  enabled: boolean
 }
 
 export interface SubAgentResource {
@@ -200,9 +193,7 @@ export interface SubAgentResource {
 
 export interface ScanResult {
   skills: SkillResource[]
-  rules: RuleResource[]
   mcps: McpResource[]
-  hooks: HookResource[]
   subAgents: SubAgentResource[]
 }
 
@@ -223,7 +214,7 @@ export interface ProjectMatrixRow {
 
 export interface ResourceGroupSummary {
   name: string
-  /** Stable group identity = metadata UUID */
+  /** Skills: folder name. Other resources: metadata UUID. */
   groupKey: string
   /** Present for skills; used to disambiguate duplicate folder names in the UI */
   contentHash?: string
@@ -241,7 +232,6 @@ export interface ResourceGroupSummary {
   tags?: string[]
   /** Frontmatter category — only when the file declares one; never invented. */
   category?: string
-  event?: string
   /** False when the resource does not follow the required metadata structure */
   structureOk: boolean
   structureWarning?: string
@@ -249,55 +239,69 @@ export interface ResourceGroupSummary {
 
 export const PLATFORM_IDS: PlatformId[] = [
   'antigravity',
+  'claude',
+  'cline',
+  'copilot',
   'cursor',
   'devin',
   'grok',
   'hermes',
   'kilo',
   'kiro',
+  'openclaw',
   'opencode',
   'zcode'
 ]
 
 export const PLATFORM_LABELS: Record<PlatformId, string> = {
   antigravity: 'Antigravity',
+  claude: 'Claude',
+  cline: 'Cline',
+  copilot: 'GitHub Copilot',
   cursor: 'Cursor',
   devin: 'Devin',
   grok: 'Grok',
   hermes: 'Hermes',
   kilo: 'Kilo',
   kiro: 'Kiro',
+  openclaw: 'OpenClaw',
   opencode: 'OpenCode',
   zcode: 'ZCode'
 }
 
 export const DEFAULT_PLATFORM_ROOTS: Record<PlatformId, string> = {
   antigravity: '~/.antigravity',
+  claude: '~/.claude',
+  cline: '~/.cline',
+  copilot: '~/.copilot',
   cursor: '~/.cursor',
   devin: '~/.devin',
   grok: '~/.grok',
   hermes: '~/.hermes',
   kilo: '~/.config/kilo',
   kiro: '~/.kiro',
+  openclaw: '~/.openclaw',
   opencode: '~/.config/opencode',
   zcode: '~/.zcode'
 }
 
 export const DEFAULT_PLATFORM_PROJECT_DIRS: Record<PlatformId, string> = {
   antigravity: '.antigravity',
+  claude: '.claude',
+  cline: '.cline',
+  copilot: '.copilot',
   cursor: '.cursor',
   devin: '.devin',
   grok: '.grok',
   hermes: '.hermes',
   kilo: '.kilo',
   kiro: '.kiro',
+  openclaw: '.openclaw',
   opencode: '.opencode',
   zcode: '.zcode'
 }
 
-export const CURSOR_ONLY_RESOURCES: ResourceType[] = ['hook', 'subAgent']
-
-export const PROJECT_ONLY_RESOURCES: ResourceType[] = ['rule']
+export const CURSOR_ONLY_RESOURCES: ResourceType[] = ['subAgent']
 
 /** Sentinel target id: create/assign against Cursor ~/.cursor (Global). */
 export const GLOBAL_TARGET_KEY = '__global__'

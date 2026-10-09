@@ -7,21 +7,11 @@ import {
   PLATFORM_IDS,
   type PlatformId
 } from '../shared/types'
-import { ruleDisplayName } from '../shared/rule-names'
 import { expandHome, isSystemProfilePath } from '../shared/utils'
 import { getSettingsPath } from '../app-paths'
 import { importedProjectsStore } from './imported-projects-store'
 
 let cached: AppSettings | null = null
-
-function migrateRuleKeys<T>(map: Record<string, T>): Record<string, T> {
-  const next: Record<string, T> = {}
-  for (const [key, value] of Object.entries(map)) {
-    const newKey = key.endsWith('.mdc') ? ruleDisplayName(key) : key
-    next[newKey] = value
-  }
-  return next
-}
 
 function migrateSettings(settings: AppSettings): AppSettings {
   const defaults = createDefaultSettings()
@@ -31,18 +21,26 @@ function migrateSettings(settings: AppSettings): AppSettings {
     repoBank?: unknown
     resourceCategories?: unknown
     hub?: unknown
-
+    cursorApi?: unknown
   }
   const { github: _g, sync: _s, repoBank: _r, resourceCategories: _c, hub: _h, cursorApi: _ca, ...rest } = legacy
   const merged = { ...defaults, ...rest }
 
+  merged.assignments = {
+    skills: { ...defaults.assignments.skills, ...(settings.assignments?.skills ?? {}) },
+    mcps: { ...defaults.assignments.mcps, ...(settings.assignments?.mcps ?? {}) },
+    subAgents: { ...defaults.assignments.subAgents, ...(settings.assignments?.subAgents ?? {}) }
+  }
+
   merged.mandatoryForAllProjects = {
-    ...defaults.mandatoryForAllProjects,
-    ...settings.mandatoryForAllProjects,
-    rules: migrateRuleKeys({
-      ...defaults.mandatoryForAllProjects.rules,
-      ...(settings.mandatoryForAllProjects?.rules ?? {})
-    })
+    skills: {
+      ...defaults.mandatoryForAllProjects.skills,
+      ...(settings.mandatoryForAllProjects?.skills ?? {})
+    },
+    subAgents: {
+      ...defaults.mandatoryForAllProjects.subAgents,
+      ...(settings.mandatoryForAllProjects?.subAgents ?? {})
+    }
   }
 
   const knownIds = new Set<string>(PLATFORM_IDS)
@@ -82,6 +80,11 @@ function migrateSettings(settings: AppSettings): AppSettings {
   merged.openRouter = {
     ...defaults.openRouter,
     ...(settings.openRouter ?? {})
+  }
+
+  merged.updates = {
+    ...defaults.updates,
+    ...(settings.updates ?? {})
   }
 
   merged.activeApiProvider = 'openRouter'

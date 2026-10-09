@@ -24,7 +24,7 @@
     janus service start [--port=N] | janus service stop | janus service status
     janus service restart [--port=N]
     janus remove | janus update
-  (--port defaults to the configured port, initial default 64850; change it with: janus port --port=N.)
+  (--port defaults to the configured port, initial default 47911; change it with: janus port --port=N.)
 
 .EXAMPLE
   .\install-local.ps1

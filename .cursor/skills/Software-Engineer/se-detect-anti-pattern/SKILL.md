@@ -1,18 +1,15 @@
 ---
-name: detect-anti-pattern
+name: se-detect-anti-pattern
 description: >-
-  Finds architecture and design anti-patterns in a codebase with file evidence,
-  severity, and concrete remediation.
+  Finds architecture and design anti-patterns in a codebase with file evidence, severity, and concrete remediation.
 disable-model-invocation: false
 metadata:
-  version: "1.0.0"
-  author: Armin Dashti
-  category: architecture
+  version: 1.0.0
+  author: "Armin Dashti"
   tags: [anti-pattern, architecture, code-smell, review, remediation]
   last_updated: "2026-08-03 23:10:00"
   uuid: ac158206-c6a2-46d4-9476-06329a79ab6b
 ---
-
 # Detect Anti-Pattern
 
 ## When to use

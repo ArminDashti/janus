@@ -1,11 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type {
-  HookResource,
-  ResourceType,
-  RuleResource,
-  SkillResource,
-  SubAgentResource
-} from '@shared/types'
+import type { ResourceType, SkillResource, SubAgentResource } from '@shared/types'
 import { isMarkdownFile } from '@shared/utils.browser'
 import { FileTree } from '@renderer/components/FileTree'
 import { MarkdownEditor } from '@renderer/components/MarkdownEditor'
@@ -26,11 +20,7 @@ async function confirmSave(filePath: string): Promise<boolean> {
 }
 
 type ListableResourceType = Exclude<ResourceType, 'mcp'>
-type CanonicalResource =
-  | SkillResource
-  | RuleResource
-  | HookResource
-  | SubAgentResource
+type CanonicalResource = SkillResource | SubAgentResource
 
 interface ResourceEditViewProps {
   resourceType: ListableResourceType
@@ -42,14 +32,6 @@ function getFiles(resource: CanonicalResource, resourceType: ListableResourceTyp
   switch (resourceType) {
     case 'skill':
       return (resource as SkillResource).files
-    case 'rule':
-      return [(resource as RuleResource).filePath]
-    case 'hook': {
-      const h = resource as HookResource
-      const list = [...h.scriptFiles]
-      if (!list.includes(h.configPath)) list.unshift(h.configPath)
-      return list
-    }
     case 'subAgent':
       return [(resource as SubAgentResource).filePath]
     default:
@@ -70,12 +52,6 @@ function getDefaultFile(resource: CanonicalResource, resourceType: ListableResou
   switch (resourceType) {
     case 'skill':
       return (resource as SkillResource).skillMdPath
-    case 'rule':
-      return (resource as RuleResource).filePath
-    case 'hook': {
-      const h = resource as HookResource
-      return h.scriptPath ?? h.configPath
-    }
     case 'subAgent':
       return (resource as SubAgentResource).filePath
     default:
@@ -140,7 +116,7 @@ export function ResourceEditView({ resourceType, resourceName, onBack }: Resourc
     )
   }
 
-  const showTree = resourceType !== 'rule' && resourceType !== 'subAgent' && files.length > 1
+  const showTree = resourceType !== 'subAgent' && files.length > 1
 
   return (
     <div className="flex flex-col h-full">
@@ -173,7 +149,14 @@ export function ResourceEditView({ resourceType, resourceName, onBack }: Resourc
         ) : (
           <div className="h-full p-2">
             {selectedFile && (
-              <EditorPane filePath={selectedFile} content={content} onChange={setContent} resourceType={resourceType} resourceName={resourceName} />
+              <EditorPane
+                filePath={selectedFile}
+                content={content}
+                onChange={setContent}
+                resourceType={resourceType}
+                resourceName={resourceName}
+                onFilePathChange={setSelectedFile}
+              />
             )}
           </div>
         )}
@@ -187,13 +170,15 @@ function EditorPane({
   content,
   onChange,
   resourceType,
-  resourceName
+  resourceName,
+  onFilePathChange
 }: {
   filePath: string
   content: string
   onChange: (v: string) => void
   resourceType?: ListableResourceType
   resourceName?: string
+  onFilePathChange?: (path: string) => void
 }) {
   const isMd = isMarkdownFile(filePath) || filePath.endsWith('.py')
   const isSkillMd = resourceType === 'skill' && fileBaseName(filePath) === 'SKILL.md'
@@ -206,7 +191,12 @@ function EditorPane({
         onSave={async (v) => {
           if (!(await confirmSave(filePath))) return
           if (isSkillMd && resourceName) {
-            await window.agentManager.writeSkillMd(filePath, v, resourceName)
+            const { filePath: savedPath } = await window.agentManager.writeSkillMd(
+              filePath,
+              v,
+              resourceName
+            )
+            if (savedPath !== filePath) onFilePathChange?.(savedPath)
           } else {
             await window.agentManager.writeFile(filePath, v)
           }

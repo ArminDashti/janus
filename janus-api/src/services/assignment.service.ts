@@ -1,48 +1,39 @@
-import { copyFile, mkdir, rm } from 'fs/promises'
-import { dirname, join, basename } from 'path'
+import { copyFile, mkdir } from 'fs/promises'
+import { join, basename } from 'path'
 import { existsSync } from 'fs'
 import type {
   AppSettings,
   AssignTarget,
-  HookResource,
   PlatformId,
   ResourceType,
-  RuleResource,
   SkillResource,
   SubAgentResource
 } from '../shared/types'
-import { CURSOR_ONLY_RESOURCES, PROJECT_ONLY_RESOURCES } from '../shared/types'
-import { ruleBaseName, ruleFileNameForPlatform } from '../shared/rule-names'
+import { CURSOR_ONLY_RESOURCES } from '../shared/types'
 import { skillContentHash } from '../shared/utils'
 import { fileService } from './file.service'
 import { getAdapter } from '../platforms'
 import { settingsStore } from './settings-store'
 
-type ScannedResource =
-  | SkillResource
-  | RuleResource
-  | HookResource
-  | SubAgentResource
+type ScannedResource = SkillResource | SubAgentResource
 
 export class AssignmentService {
   getTargets(settings: AppSettings, resourceType: ResourceType): AssignTarget[] {
     const targets: AssignTarget[] = []
 
-    if (!PROJECT_ONLY_RESOURCES.includes(resourceType)) {
-      for (const platform of settings.platforms) {
-        if (!platform.enabled) continue
-        if (CURSOR_ONLY_RESOURCES.includes(resourceType) && platform.id !== 'cursor') continue
+    for (const platform of settings.platforms) {
+      if (!platform.enabled) continue
+      if (CURSOR_ONLY_RESOURCES.includes(resourceType) && platform.id !== 'cursor') continue
 
-        const adapter = getAdapter(platform.id)
-        if (!adapter) continue
+      const adapter = getAdapter(platform.id)
+      if (!adapter) continue
 
-        targets.push({
-          type: 'platform',
-          id: platform.id,
-          label: adapter.label,
-          platformId: platform.id
-        })
-      }
+      targets.push({
+        type: 'platform',
+        id: platform.id,
+        label: adapter.label,
+        platformId: platform.id
+      })
     }
 
     for (const root of settings.projectRoots) {
@@ -121,12 +112,6 @@ export class AssignmentService {
         case 'skill':
           await fileService.removePath(join(paths.skillsDirs[0], resourceName))
           break
-        case 'rule': {
-          const base = ruleBaseName(resourceName)
-          await fileService.removePath(join(paths.rulesDir, `${base}.mdc`))
-          await fileService.removePath(join(paths.rulesDir, `${base}.md`))
-          break
-        }
         case 'subAgent': {
           const agentsDir = paths.agentsDir
           if (!agentsDir) break
@@ -135,27 +120,6 @@ export class AssignmentService {
             if (basename(file, '.md') === resourceName || basename(file) === resourceName) {
               await fileService.removePath(file)
             }
-          }
-          break
-        }
-        case 'hook': {
-          if (!paths.hooksConfigPath || !existsSync(paths.hooksConfigPath)) break
-          try {
-            const raw = await fileService.readText(paths.hooksConfigPath)
-            const parsed = JSON.parse(raw) as {
-              hooks?: Record<string, Array<Record<string, unknown>>>
-            }
-            for (const [event, entries] of Object.entries(parsed.hooks ?? {})) {
-              const filtered = entries.filter((e) => {
-                const cmd = String(e.command ?? '')
-                return !cmd.includes(resourceName) && !basename(cmd).includes(resourceName)
-              })
-              if (filtered.length === 0) delete parsed.hooks?.[event]
-              else if (parsed.hooks) parsed.hooks[event] = filtered
-            }
-            await fileService.writeText(paths.hooksConfigPath, JSON.stringify(parsed, null, 2))
-          } catch {
-            // ignore
           }
           break
         }
@@ -175,14 +139,14 @@ export class AssignmentService {
     }
   }
 
-  /** Copy a skill/rule into an IDE/CLI global folder (rootPath/skills | rootPath/rules). */
+  /** Copy a skill into an IDE/CLI global folder (rootPath/skills). */
   async assignToPlatformGlobal(
     resource: ScannedResource,
     resourceType: ResourceType,
     platformId: PlatformId
   ): Promise<void> {
-    if (resourceType !== 'skill' && resourceType !== 'rule') {
-      throw new Error('Only skills and rules can be assigned to an IDE/CLI global folder')
+    if (resourceType !== 'skill') {
+      throw new Error('Only skills can be assigned to an IDE/CLI global folder')
     }
     const settings = settingsStore.get()
     const platform = settings.platforms.find((p) => p.id === platformId && p.enabled)
@@ -198,14 +162,14 @@ export class AssignmentService {
     await this.assignResource(resource, resourceType, target)
   }
 
-  /** Remove a skill/rule from an IDE/CLI global folder. */
+  /** Remove a skill from an IDE/CLI global folder. */
   async unassignFromPlatformGlobal(
     resourceName: string,
     resourceType: ResourceType,
     platformId: PlatformId
   ): Promise<void> {
-    if (resourceType !== 'skill' && resourceType !== 'rule') {
-      throw new Error('Only skills and rules can be unassigned from an IDE/CLI global folder')
+    if (resourceType !== 'skill') {
+      throw new Error('Only skills can be unassigned from an IDE/CLI global folder')
     }
     const settings = settingsStore.get()
     const platform = settings.platforms.find((p) => p.id === platformId)
@@ -213,14 +177,7 @@ export class AssignmentService {
     const adapter = getAdapter(platformId)
     if (!adapter) return
     const paths = adapter.getPlatformPaths(platform.rootPath)
-
-    if (resourceType === 'skill') {
-      await fileService.removePath(join(paths.skillsDirs[0], resourceName))
-      return
-    }
-    const base = ruleBaseName(resourceName)
-    await fileService.removePath(join(paths.rulesDir, `${base}.mdc`))
-    await fileService.removePath(join(paths.rulesDir, `${base}.md`))
+    await fileService.removePath(join(paths.skillsDirs[0], resourceName))
   }
 
   private async assignResource(
@@ -231,12 +188,6 @@ export class AssignmentService {
     switch (resourceType) {
       case 'skill':
         await this.assignSkill(resource as SkillResource, target)
-        break
-      case 'rule':
-        await this.assignRule(resource as RuleResource, target)
-        break
-      case 'hook':
-        await this.assignHook(resource as HookResource, target)
         break
       case 'subAgent':
         await this.assignSubAgent(resource as SubAgentResource, target)
@@ -263,49 +214,6 @@ export class AssignmentService {
       }
     }
     await fileService.copyDirectory(skill.rootPath, destPath)
-  }
-
-  async assignRule(rule: RuleResource, target: AssignTarget): Promise<void> {
-    const adapter = getAdapter(target.platformId)
-    if (!adapter) return
-    const settings = settingsStore.get()
-    const paths = this.resolvePaths(adapter, target, settings)
-    const base = ruleBaseName(rule.name)
-    const destFileName = ruleFileNameForPlatform(base, target.platformId)
-    await mkdir(paths.rulesDir, { recursive: true })
-    await copyFile(rule.filePath, join(paths.rulesDir, destFileName))
-  }
-
-  async assignHook(hook: HookResource, target: AssignTarget): Promise<void> {
-    const adapter = getAdapter(target.platformId)
-    if (!adapter) return
-    const settings = settingsStore.get()
-    const paths = this.resolvePaths(adapter, target, settings)
-    if (!paths.hooksConfigPath) return
-
-    let config: { hooks?: Record<string, Array<Record<string, unknown>>> } = { hooks: {} }
-    if (existsSync(paths.hooksConfigPath)) {
-      config = JSON.parse(await fileService.readText(paths.hooksConfigPath))
-    }
-    config.hooks ??= {}
-    const entries = config.hooks[hook.event] ?? []
-    const exists = entries.some(
-      (e) => String(e.command ?? '') === String(hook.definition.command ?? '')
-    )
-    if (!exists) {
-      entries.push({ ...hook.definition })
-      config.hooks[hook.event] = entries
-    }
-    await mkdir(dirname(paths.hooksConfigPath), { recursive: true })
-    await fileService.writeText(paths.hooksConfigPath, JSON.stringify(config, null, 2))
-
-    if (hook.scriptPath && existsSync(hook.scriptPath) && paths.hooksScriptsDir) {
-      await mkdir(paths.hooksScriptsDir, { recursive: true })
-      const dest = join(paths.hooksScriptsDir, basename(hook.scriptPath))
-      if (!existsSync(dest)) {
-        await copyFile(hook.scriptPath, dest)
-      }
-    }
   }
 
   async assignSubAgent(agent: SubAgentResource, target: AssignTarget): Promise<void> {

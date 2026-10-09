@@ -3,11 +3,16 @@ import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import fastifyStatic from '@fastify/static'
 import { ensurePortableLayout, getBrandingPath, getLogosPath } from './app-paths'
-import { addSseClient } from './events'
+import { addSseClient, onScanChanged } from './events'
 import { registerRoutes } from './routes/index'
+import { rescanProjectRoots } from './services/project-root-rescan.service'
+import { resourceService } from './services/resource.service'
 import { applyStartupSetting } from './services/startup.service'
+import { importedProjectsStore } from './services/imported-projects-store'
+import { scannerService } from './services/scanner.service'
 import { settingsStore } from './services/settings-store'
 import { startFileWatcher } from './services/watcher.service'
+import { checkForUpdates } from './services/update.service'
 
 function parseBind(bind: string): { host: string; port: number } {
   if (bind.startsWith('[')) {
@@ -25,12 +30,43 @@ function parseBind(bind: string): { host: string; port: number } {
 
 export async function startServer(): Promise<void> {
   ensurePortableLayout()
+  importedProjectsStore.pruneMissingOnDisk()
+  // Projects are defined by their `.git` folder: re-walk every scan root so
+  // repos cloned into a browsed folder after import are loaded automatically.
+  try {
+    const added = await rescanProjectRoots()
+    if (added.length > 0) {
+      await resourceService.syncMandatoryForNewProjects(added.map((p) => p.id))
+      console.log(`Janus API: auto-loaded ${added.length} new project(s) from scan roots`)
+    }
+  } catch (err) {
+    console.error('startup: project roots rescan failed:', err)
+  }
   startFileWatcher()
+  // Keep the scan cache warm: refresh on watcher events (in-process) and on a
+  // fixed interval, so page reads serve the latest background update instantly.
+  onScanChanged(() => scannerService.scheduleBackgroundRefresh(settingsStore.get()))
+  scannerService.startBackgroundUpdates(() => settingsStore.get())
   // Re-apply the login autostart entry on every boot so the HKCU Run value
   // stays in sync with settings.json (manual edits, reinstalls, drift).
-  applyStartupSetting(settingsStore.get().startup?.runOnLogin ?? false)
+  const bootSettings = settingsStore.get()
+  applyStartupSetting(bootSettings.startup?.runOnLogin ?? false)
 
-  const bind = process.env.JANUS_API_BIND || '0.0.0.0:8005'
+  if (bootSettings.updates?.checkOnStartup) {
+    void checkForUpdates()
+      .then((check) => {
+        if (check.hasUpdate) {
+          console.log(
+            `Updates: ${check.behind} commit(s) behind origin/${check.branch} — open Settings → Updates to install.`
+          )
+        } else if (check.error) {
+          console.log(`Updates: startup check failed — ${check.error}`)
+        }
+      })
+      .catch((err) => console.error('Updates: startup check threw:', err))
+  }
+
+  const bind = process.env.JANUS_API_BIND || '127.0.0.1:47911'
   const { host, port } = parseBind(bind)
 
   const app = Fastify({ logger: false })

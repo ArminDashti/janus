@@ -14,7 +14,7 @@ npm install
 npm run dev
 ```
 
-The API listens on `http://127.0.0.1:8005` by default. Point janus-webui at that URL (or set `VITE_API_BASE_URL`).
+The API listens on `http://127.0.0.1:47911` by default. Point janus-webui at that URL (or set `VITE_API_BASE_URL`).
 
 ## CLI
 
@@ -36,7 +36,7 @@ Run via `npm run janus -- <command>`, or `npx janus <command>` after `npm link`:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `JANUS_API_BIND` | `127.0.0.1:8005` | Host and port to bind |
+| `JANUS_API_BIND` | `127.0.0.1:47911` | Host and port to bind |
 | `JANUS_APP_ROOT` | package directory | Data directory (settings, instructions, imported projects) |
 
 ## Development
@@ -82,3 +82,16 @@ Static files:
 - `GET /api/health` — liveness check
 - `GET /api/events` — SSE stream (`scan-changed` events)
 - Settings, scan, files, resources, MCPs, platforms, projects, instructions, refactor — see `src/routes/index.ts`
+
+## External rename / modify sync
+
+Skills renamed or modified outside the app are reflected automatically:
+
+- The file watcher (`src/services/watcher.service.ts`) observes project/global skill
+  folders and emits `scan-changed` over SSE so the UI re-scans.
+- Content edits fan out to same-name clones that still match the previous hash
+  (`src/services/skill-sync.service.ts`).
+- Name drift is reconciled on every scan (`src/services/skill-name-sync.service.ts`):
+  - a folder renamed on disk rewrites `SKILL.md` `name:` (and all same-UUID clones follow);
+  - `name:` edited in `SKILL.md` renames the folder (and all same-UUID clones follow);
+  - with no prior scan history to disambiguate, the folder name is authoritative.

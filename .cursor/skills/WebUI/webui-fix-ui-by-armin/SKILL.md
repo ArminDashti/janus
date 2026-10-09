@@ -1,18 +1,15 @@
 ---
-name: webui-fix-design
+name: webui-fix-ui-by-armin
 description: >-
-  Applies an approved design spec or chosen design alternative to page source and
-  returns DONE or BLOCKED status per item.
+  Applies an approved design spec or chosen design alternative to page source and returns DONE or BLOCKED status per item.
 disable-model-invocation: false
 metadata:
-  version: "3.1.0"
-  author: Armin Dashti
-  category: webui
+  version: 3.1.0
+  author: "Armin Dashti"
   tags: [design, fix, implement]
   last_updated: "2026-08-08 09:57:00"
   uuid: e8cc28ad-9ca0-45ab-ae9b-a50cdc5cd88e
 ---
-
 # WebUI Fix Design
 
 ## When to use

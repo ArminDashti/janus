@@ -4,10 +4,7 @@ import { CURSOR_ONLY_RESOURCES } from '../shared/types'
 
 export interface PlatformPaths {
   skillsDirs: string[]
-  rulesDir: string
   mcpConfigPath: string
-  hooksConfigPath: string
-  hooksScriptsDir: string
   agentsDir: string
 }
 
@@ -31,16 +28,11 @@ function joinPath(...parts: string[]): string {
 export function createBasePaths(root: string, hooksAndAgents: boolean): PlatformPaths {
   const paths: PlatformPaths = {
     skillsDirs: [joinPath(root, 'skills')],
-    rulesDir: joinPath(root, 'rules'),
     mcpConfigPath: joinPath(root, 'mcp.json'),
-    hooksConfigPath: joinPath(root, 'hooks.json'),
-    hooksScriptsDir: joinPath(root, 'hooks'),
     agentsDir: joinPath(root, 'agents')
   }
 
   if (!hooksAndAgents) {
-    paths.hooksConfigPath = ''
-    paths.hooksScriptsDir = ''
     paths.agentsDir = ''
   }
 

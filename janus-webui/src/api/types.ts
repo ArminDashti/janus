@@ -1,16 +1,16 @@
 import type {
   AppSettings,
   AssignTarget,
-  HookResource,
   McpProbeResult,
   PlatformId,
   ProjectMatrixRow,
   ResourceGroupSummary,
   ResourceType,
-  RuleResource,
   ScanResult,
   SkillResource,
-  SubAgentResource
+  SubAgentResource,
+  UpdateApplyResult,
+  UpdateCheckResult
 } from '@shared/types'
 
 export interface AgentManagerApi {
@@ -18,7 +18,10 @@ export interface AgentManagerApi {
   getSettings: () => Promise<AppSettings>
   saveSettings: (settings: AppSettings) => Promise<AppSettings>
   resetSettings: () => Promise<AppSettings>
+  checkForUpdates: () => Promise<UpdateCheckResult>
+  applyUpdate: () => Promise<UpdateApplyResult>
   scanAll: (options?: { probeMcps?: boolean }) => Promise<ScanResult>
+  syncNow: () => Promise<ScanResult>
   discoverProjects: (scanPath: string) => Promise<ScanResult['skills']>
   readFile: (path: string) => Promise<string>
   writeFile: (path: string, content: string) => Promise<boolean>
@@ -50,20 +53,20 @@ export interface AgentManagerApi {
     mandatory: boolean
   ) => Promise<boolean>
   renameResource: (
-    resourceType: 'skill' | 'rule' | 'hook' | 'subAgent',
+    resourceType: 'skill' | 'subAgent',
     oldName: string,
     newName: string
   ) => Promise<boolean>
   deleteResource: (resourceType: Exclude<ResourceType, 'mcp'>, resourceName: string) => Promise<boolean>
   createResource: (
-    resourceType: 'skill' | 'rule' | 'hook' | 'subAgent',
+    resourceType: 'skill' | 'subAgent',
     name: string,
     projectIds: string[]
   ) => Promise<boolean>
   getCanonicalResource: (
     resourceType: Exclude<ResourceType, 'mcp'>,
     resourceName: string
-  ) => Promise<SkillResource | RuleResource | HookResource | SubAgentResource | null>
+  ) => Promise<SkillResource | SubAgentResource | null>
   deleteMcp: (name: string, configPath: string) => Promise<boolean>
   addMcp: (name: string, params: Record<string, unknown>) => Promise<string>
   testMcp: (name: string, params: Record<string, unknown>) => Promise<McpProbeResult>
@@ -88,11 +91,11 @@ export interface AgentManagerApi {
     message: string,
     data?: Record<string, unknown>
   ) => Promise<boolean>
-  writeSkillMd: (filePath: string, content: string, currentResourceName: string) => Promise<boolean>
-  listInstructions: () => Promise<string[]>
-  readInstruction: (name: string) => Promise<string>
-  saveInstruction: (name: string, content: string) => Promise<boolean>
-  createInstruction: (name: string) => Promise<string>
+  writeSkillMd: (
+    filePath: string,
+    content: string,
+    currentResourceName: string
+  ) => Promise<{ filePath: string }>
   apiRefactor: (params: {
     resourceType: string
     content: string

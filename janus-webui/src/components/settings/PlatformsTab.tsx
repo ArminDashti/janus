@@ -88,21 +88,7 @@ export function PlatformsTab({ settings, onChange }: PlatformsTabProps) {
   }
 
   return (
-    <div className="space-y-6 pb-6">
-      <div className="flex items-start justify-between gap-6">
-        <p className="text-xs text-zinc-500 max-w-2xl">
-          Enable IDE/CLIs and set each global folder (user home config) and the folder name used
-          inside projects.
-        </p>
-        <button
-          type="button"
-          onClick={() => void savePlatforms()}
-          className="px-4 py-2 text-sm bg-emerald-700 rounded shrink-0"
-        >
-          Save IDE/CLI settings
-        </button>
-      </div>
-
+    <section className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 space-y-4">
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         {platforms.map((platform) => (
           <div
@@ -180,6 +166,15 @@ export function PlatformsTab({ settings, onChange }: PlatformsTabProps) {
           </div>
         ))}
       </div>
-    </div>
+      <div>
+        <button
+          type="button"
+          onClick={() => void savePlatforms()}
+          className="px-4 py-2 text-sm bg-emerald-700 hover:bg-emerald-600 rounded-lg"
+        >
+          Save IDE/CLI settings
+        </button>
+      </div>
+    </section>
   )
 }

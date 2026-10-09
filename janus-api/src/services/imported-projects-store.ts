@@ -49,6 +49,24 @@ export class ImportedProjectsStore {
     return this.save(next)
   }
 
+  /** Drop imported projects whose folder no longer exists on disk. */
+  pruneMissingOnDisk(): string[] {
+    const removed: string[] = []
+    this.update((roots) =>
+      roots
+        .map((root) => ({
+          ...root,
+          projects: root.projects.filter((p) => {
+            if (existsSync(p.path)) return true
+            removed.push(p.id)
+            return false
+          })
+        }))
+        .filter((root) => root.projects.length > 0)
+    )
+    return removed
+  }
+
   /** Seed from legacy settings.projectRoots when the dedicated file is empty. */
   migrateFromSettings(legacyRoots: ProjectRootConfig[]): boolean {
     this.load()

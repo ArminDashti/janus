@@ -1,18 +1,15 @@
 ---
-name: srv-ai
+name: daroupakhsh-srv-ai
 description: >-
-  Operate Windows host SRV-AI (10.10.16.118) over SSH TCP 443 from
-  10.20.9.59. Prefer SSH MCP, trusted/official downloads only, warn before
-  risky commands, and expect Iran egress blocks on some sites or IPs.
+  Operate Windows host SRV-AI (10.10.16.118) over SSH TCP 443 from 10.20.9.59. Prefer SSH MCP, trusted/official downloads only, warn before risky commands, and expect Iran egress blocks on some sites or IPs.
 disable-model-invocation: false
-version: "1.0.0"
-author: Armin Dashti
-category: windows
-tags: [ssh, srv-ai, windows, devops, openssh, iran]
-last_updated: "2026-09-21 14:10:58"
-uuid: 1dba6dea-78e3-4e02-a9ca-4a5d4607a2ab
+metadata:
+  version: 1.0.0
+  author: "Armin Dashti"
+  tags: [ssh, srv-ai, windows, devops, openssh, iran]
+  last_updated: "2026-09-21 14:10:58"
+  uuid: 1dba6dea-78e3-4e02-a9ca-4a5d4607a2ab
 ---
-
 # SRV-AI
 
 ## When

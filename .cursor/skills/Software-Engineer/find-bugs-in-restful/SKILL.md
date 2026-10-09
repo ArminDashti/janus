@@ -1,18 +1,15 @@
 ---
-name: find-bug-in-restful
+name: find-bugs-in-restful
 description: >-
-  Hunts functional bugs in RESTful APIs using contract analysis, code traces,
-  and targeted requests, then reports reproducible defects with evidence.
+  Hunts functional bugs in RESTful APIs using contract analysis, code traces, and targeted requests, then reports reproducible defects with evidence.
 disable-model-invocation: false
 metadata:
-  version: "1.0.0"
-  author: Armin Dashti
-  category: bug-hunter
+  version: 1.0.0
+  author: "Armin Dashti"
   tags: [rest, api, bug, defect, debugging, http]
   last_updated: "2026-08-03 23:10:00"
   uuid: 0b0be2f2-7dda-4a35-b93c-c87d9898fb52
 ---
-
 # Find Bug in Restful
 
 ## When to use

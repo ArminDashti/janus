@@ -21,30 +21,26 @@ interface ResourceListViewProps {
   onRefresh?: () => void
   onAdd?: () => void
   onApplyAll?: () => void
-  /** When false, hide the project dropdown (e.g. Repositories page). Default: enhanced types only. */
+  /** When false, hide the project dropdown (e.g. Projects page). Default: enhanced types only. */
   showProjectFilter?: boolean
   /** Hide the page title header when embedded in another layout. */
   hideHeader?: boolean
 }
 
-function isEnhancedGrid(
-  resourceType: ListableResourceType
-): resourceType is 'skill' | 'rule' | 'hook' | 'subAgent' {
-  return (
-    resourceType === 'skill' ||
-    resourceType === 'rule' ||
-    resourceType === 'hook' ||
-    resourceType === 'subAgent'
-  )
+function isEnhancedGrid(resourceType: ListableResourceType): boolean {
+  return resourceType === 'skill' || resourceType === 'subAgent'
 }
 
-function isRenamable(
-  resourceType: ListableResourceType
-): resourceType is 'skill' | 'rule' | 'hook' | 'subAgent' {
+function isRenamable(resourceType: ListableResourceType): boolean {
   return isEnhancedGrid(resourceType)
 }
 
-function resourceOpKey(row: ResourceGroupSummary): string {
+function skillOpName(name: string): string {
+  return name.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? name
+}
+
+function resourceOpKey(row: ResourceGroupSummary, resourceType: ListableResourceType): string {
+  if (resourceType === 'skill') return skillOpName(row.name)
   return row.groupKey || row.name
 }
 
@@ -192,7 +188,7 @@ export function ResourceListView({
   }
 
   const handleDelete = async (row: ResourceGroupSummary) => {
-    const opKey = resourceOpKey(row)
+    const opKey = resourceOpKey(row, resourceType)
     const confirmed = await showMessage({
       message: `Delete "${row.name}" from all locations? Items are kept under .trash.`,
       confirm: true,
@@ -246,6 +242,7 @@ export function ResourceListView({
     sortable: true,
     className: 'min-w-[16rem] w-[22rem]',
     render: (row: ResourceGroupSummary) => {
+      const shownName = resourceType === 'skill' ? skillOpName(row.name) : row.name
       const showHash =
         resourceType === 'skill' && duplicateNames.has(row.name) && row.contentHash
       const hashLabel = shortContentHash(row.contentHash)
@@ -253,12 +250,12 @@ export function ResourceListView({
         <div className="flex items-center gap-2 min-w-[14rem]">
           <input
             type="text"
-            defaultValue={row.name}
-            key={`${resourceOpKey(row)}-resource-name`}
+            defaultValue={shownName}
+            key={`${resourceOpKey(row, resourceType)}-resource-name`}
             onClick={stopProp}
             onBlur={(e) => {
               const next = e.target.value.trim()
-              if (next && next !== row.name) void handleRename(resourceOpKey(row), next)
+              if (next && next !== shownName) void handleRename(resourceOpKey(row, resourceType), next)
             }}
             onKeyDown={(e) => {
               if (e.key === 'Enter') e.currentTarget.blur()
@@ -273,7 +270,7 @@ export function ResourceListView({
         </div>
       ) : (
         <span className="font-medium text-zinc-200 inline-flex items-center gap-2">
-          {row.name}
+          {shownName}
           {showHash ? (
             <span className="ml-2 text-[10px] font-mono text-zinc-500">{hashLabel}</span>
           ) : null}
@@ -380,11 +377,11 @@ export function ResourceListView({
           <ResourceTable
             columns={columns}
             rows={filtered}
-            rowKey={(r) => r.groupKey || r.name}
+            rowKey={(r) => resourceOpKey(r, resourceType)}
             sortKey={sortKey}
             sortDir={sortDir}
             onSort={handleSort}
-            onRowClick={enhanced ? (row) => onEdit(resourceOpKey(row)) : undefined}
+            onRowClick={enhanced ? (row) => onEdit(resourceOpKey(row, resourceType)) : undefined}
           />
         )}
       </div>

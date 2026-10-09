@@ -68,11 +68,11 @@ $distDir = Join-Path $webuiDir 'dist'
 if (-not (Test-Path -LiteralPath (Join-Path $distDir 'index.html'))) {
     throw "WebUI build produced no index.html under $distDir"
 }
-# getApiBase() is `import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8005'`.
+# getApiBase() is `import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:47911'`.
 # With an empty base the minifier must fold the fallback away (the surviving
-# `janus-api.local:8005` hostname branch is unrelated and harmless).
+# `janus-api.local:47911` hostname branch is unrelated and harmless).
 $leaked = @(Get-ChildItem -LiteralPath $distDir -Recurse -Filter *.js |
-    Where-Object { [IO.File]::ReadAllText($_.FullName) -match 'http://127\.0\.0\.1:8005' })
+    Where-Object { [IO.File]::ReadAllText($_.FullName) -match 'http://127\.0\.0\.1:47911' })
 if ($leaked.Count -gt 0) {
     throw "Same-origin guard: built WebUI still contains the absolute API fallback (VITE_API_BASE_URL not applied): $($leaked.Name -join ', ')"
 }
@@ -80,10 +80,12 @@ Write-Host 'WebUI same-origin guard passed (no hardcoded API base).'
 
 # --- 4. Bundle the CLI (esbuild) --------------------------------------------
 Write-Host 'Bundling scripts\janus-cli.ts (esbuild)...'
-$esbuild = Join-Path $apiDir 'node_modules\.bin\esbuild.cmd'
-if (-not (Test-Path -LiteralPath $esbuild)) { throw "esbuild not found at $esbuild (run npm install in janus-api)" }
+$janusVersion = (Get-Content (Join-Path $apiDir 'package.json') -Raw | ConvertFrom-Json).version
+if (-not $janusVersion) { throw 'Could not read version from janus-api\package.json' }
 $bundle = Join-Path $buildDir 'janus-cli.cjs'
-& $esbuild (Join-Path $scriptsDir 'janus-cli.ts') --bundle --platform=node --format=cjs --target=node20 "--outfile=$bundle" --log-level=warning
+# bundle-cli.mjs sets the __JANUS_VERSION__ define via the esbuild JS API: the
+# esbuild.cmd shim strips the quotes from the literal, leaving an invalid define value.
+& $nodeExe (Join-Path $scriptsDir 'bundle-cli.mjs') $janusVersion $bundle
 if ($LASTEXITCODE -ne 0) { throw "esbuild failed (exit $LASTEXITCODE)" }
 # esbuild warns that import.meta is empty in cjs output (app-paths packageRoot): that fallback
 # is unreachable because janus-cli.ts always sets JANUS_APP_ROOT before any path resolution.

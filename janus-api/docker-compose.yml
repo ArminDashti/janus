@@ -6,12 +6,12 @@ services:
     container_name: janus-api
     restart: "no"
     environment:
-      JANUS_API_BIND: "0.0.0.0:${INTERNAL_PORT:-8005}"
+      JANUS_API_BIND: "0.0.0.0:${INTERNAL_PORT:-47911}"
     expose:
-      - "${INTERNAL_PORT:-8005}"
+      - "${INTERNAL_PORT:-47911}"
     ports:
-      - target: ${INTERNAL_PORT:-8005}
-        published: ${PUBLISH_PORT-8005}
+      - target: ${INTERNAL_PORT:-47911}
+        published: ${PUBLISH_PORT-47911}
         protocol: tcp
     networks:
       - app_net

@@ -4,6 +4,6 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
-ENV JANUS_API_BIND=0.0.0.0:8005
-EXPOSE 8005
+ENV JANUS_API_BIND=0.0.0.0:47911
+EXPOSE 47911
 CMD ["npx", "tsx", "src/cli.ts", "run"]

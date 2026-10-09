@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url'
 
 export const SERVICE_NAME = 'janus'
 export const SERVICE_DISPLAY = 'Janus'
-export const DEFAULT_URL = 'http://127.0.0.1:8005'
+export const DEFAULT_URL = 'http://127.0.0.1:47911'
 
 function sc(...args: string[]): { status: number; stdout: string; stderr: string } {
   const result = spawnSync('sc.exe', args, { encoding: 'utf-8', windowsHide: true })
@@ -48,7 +48,7 @@ export function install(): void {
   if (create.status !== 0) {
     throw new Error(`sc create failed (may need elevation):\n${create.stderr || create.stdout}`)
   }
-  sc('description', SERVICE_NAME, 'Local Janus HTTP API for janus-webui (skills, rules, hooks, …)')
+  sc('description', SERVICE_NAME, 'Local Janus HTTP API for janus-webui (skills, sub-agents, MCPs)')
   sc('failure', SERVICE_NAME, 'reset= 86400', 'actions= restart/5000/restart/5000/restart/5000')
   console.log(`Installed Windows service '${SERVICE_NAME}' (${SERVICE_DISPLAY})`)
   console.log(`Listening URL when running: ${DEFAULT_URL}`)

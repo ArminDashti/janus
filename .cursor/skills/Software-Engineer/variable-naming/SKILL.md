@@ -1,10 +1,10 @@
 ---
-name: variable-naming-conventions
-description: Modern, industry-standard variable naming conventions with strict override rules.
+name: variable-naming
+description: >-
+  Modern, industry-standard variable naming conventions with strict override rules.
 metadata:
   version: 1.1.0
   author: "Armin Dashti"
-  category: programming
   tags: [naming, clean-code, best-practices]
   last_updated: "2026-08-02 10:46:02"
   uuid: 8e39ad6d-e3dd-41a7-978c-0dc3e80aaa01

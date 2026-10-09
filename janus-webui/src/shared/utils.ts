@@ -12,21 +12,16 @@ export {
 
 export {
   extractResourceMeta,
-  extractHookMeta,
   ensureResourceMeta,
   formatMetaTimestamp,
   metaTimestampToIso,
   newResourceUuid,
   skillTemplate,
-  ruleTemplate,
   subAgentTemplate,
-  hookEntryTemplate,
   upsertMarkdownMeta,
   serializeMetadataBlock,
   validateSkillStructure,
-  validateRuleStructure,
   validateSubAgentStructure,
-  validateHookStructure,
   isCompleteResourceMeta,
   type ResourceMeta
 } from './resource-meta'

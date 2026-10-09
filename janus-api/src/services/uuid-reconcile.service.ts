@@ -1,14 +1,6 @@
 import { createHash } from 'crypto'
-import { basename } from 'path'
 import { existsSync } from 'fs'
-import type {
-  HookResource,
-  RuleResource,
-  ScanResult,
-  SkillResource,
-  SubAgentResource
-} from '../shared/types'
-import { ruleDisplayName } from '../shared/rule-names'
+import type { ScanResult, SkillResource, SubAgentResource } from '../shared/types'
 import {
   extractResourceMeta,
   ensureResourceMeta,
@@ -18,8 +10,6 @@ import {
   parseFrontmatter,
   skillContentHash,
   upsertMarkdownMeta,
-  validateHookStructure,
-  validateRuleStructure,
   validateSkillStructure,
   validateSubAgentStructure
 } from '../shared/utils'
@@ -62,18 +52,6 @@ export function markdownIdentityDigest(content: string): string {
   )
 }
 
-export function hookIdentityDigest(event: string, entry: Record<string, unknown>): string {
-  return sha256(
-    [
-      event,
-      String(entry.command ?? ''),
-      String(entry.type ?? ''),
-      String(entry.matcher ?? ''),
-      String(entry.timeout ?? ''),
-      String(entry.loop_limit ?? '')
-    ].join('|')
-  )
-}
 
 function pickSharedUuid(candidates: Array<string | undefined>): string {
   const counts = new Map<string, number>()
@@ -126,14 +104,12 @@ async function rewriteMarkdownUuid(
 }
 
 /**
- * Ensure identical Skills / Rules / Hooks / Sub-agents across projects share one UUID.
+ * Ensure identical Skills / Sub-agents across projects share one UUID.
  * Mutates `result` in place and rewrites on-disk metadata when needed.
  */
 export async function reconcileSharedUuids(result: ScanResult): Promise<void> {
   await reconcileSkills(result.skills)
-  await reconcileRules(result.rules)
   await reconcileSubAgents(result.subAgents)
-  await reconcileHooks(result.hooks)
 }
 
 async function reconcileSkills(skills: SkillResource[]): Promise<void> {
@@ -171,37 +147,6 @@ async function reconcileSkills(skills: SkillResource[]): Promise<void> {
   }
 }
 
-async function reconcileRules(rules: RuleResource[]): Promise<void> {
-  const groups = new Map<string, RuleResource[]>()
-
-  for (const rule of rules) {
-    if (!existsSync(rule.filePath)) continue
-    const text = await fileService.readText(rule.filePath)
-    const digest = markdownIdentityDigest(text)
-    const key = `rule|${ruleDisplayName(rule.name)}|${digest}`
-    const list = groups.get(key) ?? []
-    list.push(rule)
-    groups.set(key, list)
-  }
-
-  for (const group of groups.values()) {
-    const sharedUuid = pickSharedUuid(group.map((r) => r.uuid))
-    for (const rule of group) {
-      if (rule.uuid === sharedUuid && UUID_RE.test(rule.uuid)) {
-        rule.id = sharedUuid
-        continue
-      }
-      const { frontmatter } = await rewriteMarkdownUuid(rule.filePath, sharedUuid)
-      const structure = validateRuleStructure(frontmatter)
-      const meta = extractResourceMeta(frontmatter)
-      rule.uuid = sharedUuid
-      rule.id = sharedUuid
-      rule.lastUpdatedAt = metaTimestampToIso(meta.last_updated)
-      rule.structureOk = structure.ok
-      rule.structureWarning = structure.ok ? undefined : structure.reason
-    }
-  }
-}
 
 async function reconcileSubAgents(agents: SubAgentResource[]): Promise<void> {
   const groups = new Map<string, SubAgentResource[]>()
@@ -238,84 +183,3 @@ async function reconcileSubAgents(agents: SubAgentResource[]): Promise<void> {
   }
 }
 
-async function reconcileHooks(hooks: HookResource[]): Promise<void> {
-  const groups = new Map<string, HookResource[]>()
-
-  for (const hook of hooks) {
-    const entry = hook.definition as unknown as Record<string, unknown>
-    const digest = hookIdentityDigest(hook.event, entry)
-    const commandBase = basename(String(entry.command ?? '')) || 'hook'
-    const key = `hook|${hook.event}|${commandBase}|${digest}`
-    const list = groups.get(key) ?? []
-    list.push(hook)
-    groups.set(key, list)
-  }
-
-  // Group rewrites by config path so we only write each hooks.json once
-  const dirtyConfigs = new Map<string, { parsed: { hooks?: Record<string, Array<Record<string, unknown>>> }; touched: boolean }>()
-
-  for (const group of groups.values()) {
-    const sharedUuid = pickSharedUuid(
-      group.map((h) => h.uuid || (h.definition as { uuid?: string }).uuid)
-    )
-
-    for (const hook of group) {
-      if (hook.uuid === sharedUuid && UUID_RE.test(hook.uuid)) {
-        hook.id = sharedUuid
-        continue
-      }
-
-      if (!existsSync(hook.configPath)) continue
-
-      let cache = dirtyConfigs.get(hook.configPath)
-      if (!cache) {
-        const raw = await fileService.readText(hook.configPath)
-        cache = {
-          parsed: JSON.parse(raw) as {
-            hooks?: Record<string, Array<Record<string, unknown>>>
-          },
-          touched: false
-        }
-        dirtyConfigs.set(hook.configPath, cache)
-      }
-
-      const entries = cache.parsed.hooks?.[hook.event] ?? []
-      const command = hook.definition.command ?? ''
-      for (const entry of entries) {
-        if (String(entry.command ?? '') !== command) continue
-        // Match this hook instance (by old uuid if present)
-        if (entry.uuid && hook.uuid && entry.uuid !== hook.uuid) continue
-
-        const existing = {
-          version: String(entry.version ?? ''),
-          author: String(entry.author ?? ''),
-          tags: Array.isArray(entry.tags) ? (entry.tags as string[]) : [],
-          last_updated: String(entry.last_updated ?? ''),
-          uuid: sharedUuid
-        }
-        const meta = ensureResourceMeta(existing)
-        entry.uuid = meta.uuid
-        entry.version = meta.version
-        entry.author = meta.author
-        delete entry.category
-        entry.tags = meta.tags
-        entry.last_updated = meta.last_updated || formatMetaTimestamp()
-        cache.touched = true
-
-        const structure = validateHookStructure(entry)
-        hook.uuid = sharedUuid
-        hook.id = sharedUuid
-        hook.definition = entry as HookResource['definition']
-        hook.lastUpdatedAt = metaTimestampToIso(meta.last_updated)
-        hook.structureOk = structure.ok
-        hook.structureWarning = structure.ok ? undefined : structure.reason
-        break
-      }
-    }
-  }
-
-  for (const [configPath, cache] of dirtyConfigs) {
-    if (!cache.touched) continue
-    await fileService.writeText(configPath, JSON.stringify(cache.parsed, null, 2))
-  }
-}

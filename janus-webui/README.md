@@ -2,7 +2,7 @@
 
 Installable PWA for [Janus](https://github.com/ArminDashti/janus) — manage Skills, Rules, MCPs, Hooks, and Sub-agents across AI platforms.
 
-Talks to [janus-api](https://github.com/ArminDashti/janus-api) at `http://127.0.0.1:8005` by default. The desktop Electron app is separate.
+Talks to [janus-api](https://github.com/ArminDashti/janus-api) at `http://127.0.0.1:47911` by default. The desktop Electron app is separate.
 
 ## Setup
 
@@ -19,7 +19,7 @@ npm run dev
 Runs on [http://127.0.0.1:8006](http://127.0.0.1:8006). Service worker is **off** in dev (`devOptions.enabled: false`).
 
 ```
-VITE_API_BASE_URL=http://127.0.0.1:8005
+VITE_API_BASE_URL=http://127.0.0.1:47911
 ```
 
 ## Build / installable PWA

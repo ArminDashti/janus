@@ -44,6 +44,30 @@ export default {
           600: 'rgb(var(--c-blue-600) / <alpha-value>)',
           700: 'rgb(var(--c-blue-700) / <alpha-value>)'
         }
+      },
+      keyframes: {
+        'ios-backdrop-in': {
+          from: { opacity: '0' },
+          to: { opacity: '1' }
+        },
+        'ios-modal-in': {
+          from: { opacity: '0', transform: 'scale(0.88)' },
+          to: { opacity: '1', transform: 'scale(1)' }
+        },
+        'ios-backdrop-out': {
+          from: { opacity: '1' },
+          to: { opacity: '0' }
+        },
+        'ios-modal-out': {
+          from: { opacity: '1', transform: 'scale(1)' },
+          to: { opacity: '0', transform: 'scale(0.88)' }
+        }
+      },
+      animation: {
+        'ios-backdrop-in': 'ios-backdrop-in 0.38s cubic-bezier(0.32, 0.72, 0, 1) both',
+        'ios-modal-in': 'ios-modal-in 0.52s cubic-bezier(0.32, 0.72, 0, 1) both',
+        'ios-backdrop-out': 'ios-backdrop-out 0.38s cubic-bezier(0.32, 0.72, 0, 1) both',
+        'ios-modal-out': 'ios-modal-out 0.52s cubic-bezier(0.32, 0.72, 0, 1) both'
       }
     }
   },

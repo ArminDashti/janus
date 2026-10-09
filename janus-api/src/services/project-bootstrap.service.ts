@@ -75,15 +75,9 @@ export class ProjectBootstrapService {
   async ensurePlatformFolders(projectPath: string, platformId: PlatformId): Promise<void> {
     const dotDir = getProjectDotDir(projectPath, resolveProjectDirName(platformId))
     await fileService.writeText(join(dotDir, 'skills', '.keep'), '')
-    await fileService.writeText(join(dotDir, 'rules', '.keep'), '')
 
     if (platformId === 'cursor') {
-      await fileService.writeText(join(dotDir, 'hooks', '.keep'), '')
       await fileService.writeText(join(dotDir, 'agents', '.keep'), '')
-      const hooksJson = join(dotDir, 'hooks.json')
-      if (!existsSync(hooksJson)) {
-        await fileService.writeText(hooksJson, JSON.stringify({ hooks: {} }, null, 2))
-      }
     }
   }
 }

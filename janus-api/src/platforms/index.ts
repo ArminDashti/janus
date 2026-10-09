@@ -9,8 +9,8 @@ function makeAdapter(
   extraSkillsDir?: string
 ): PlatformAdapter {
   const supportedResources: PlatformAdapter['supportedResources'] = hooksAndAgents
-    ? ['skill', 'rule', 'mcp', 'hook', 'subAgent']
-    : ['skill', 'rule', 'mcp']
+    ? ['skill', 'mcp', 'subAgent']
+    : ['skill', 'mcp']
 
   return {
     id,
@@ -32,8 +32,12 @@ function makeAdapter(
 
 export const cursorAdapter = makeAdapter('cursor', 'Cursor', true, 'skills-cursor')
 export const antigravityAdapter = makeAdapter('antigravity', 'Antigravity', false)
+export const claudeAdapter = makeAdapter('claude', 'Claude', false)
+export const clineAdapter = makeAdapter('cline', 'Cline', false)
+export const copilotAdapter = makeAdapter('copilot', 'GitHub Copilot', false)
 export const devinAdapter = makeAdapter('devin', 'Devin', false)
 export const opencodeAdapter = makeAdapter('opencode', 'OpenCode', false)
+export const openclawAdapter = makeAdapter('openclaw', 'OpenClaw', false)
 export const kiloAdapter = makeAdapter('kilo', 'Kilo', false)
 export const zcodeAdapter = makeAdapter('zcode', 'ZCode', false)
 export const hermesAdapter = makeAdapter('hermes', 'Hermes', false)
@@ -42,12 +46,16 @@ export const kiroAdapter = makeAdapter('kiro', 'Kiro', false)
 
 export const allAdapters = [
   antigravityAdapter,
+  claudeAdapter,
+  clineAdapter,
+  copilotAdapter,
   cursorAdapter,
   devinAdapter,
   grokAdapter,
   hermesAdapter,
   kiloAdapter,
   kiroAdapter,
+  openclawAdapter,
   opencodeAdapter,
   zcodeAdapter
 ]

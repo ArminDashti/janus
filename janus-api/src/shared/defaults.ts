@@ -25,17 +25,14 @@ export function createDefaultSettings(): AppSettings {
     },
     assignments: {
       skills: {},
-      rules: {},
       mcps: {},
-      hooks: {},
       subAgents: {}
     },
     mandatoryForAllProjects: {
       skills: {},
-      rules: {},
-      hooks: {},
       subAgents: {}
     },
+    updates: { checkOnStartup: true },
     uiFilters: {}
   }
 }

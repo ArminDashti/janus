@@ -1,10 +1,17 @@
 // Janus.exe CLI entry (bundled into a Node SEA by build-janus-exe.ps1).
 //
 // Implements the local-install command surface:
-//   janus doctor | status | help
+//   janus doctor | status | version | help
 //   janus service start|stop|status|restart [--port=N]
 //   janus run [--port=N] [--no-open]
 //   janus port [--port=N]           (show or set the default port)
+//   janus skills list
+//   janus skills delete --skill=<name>
+//   janus skills rename --skill=<name> --new-name=<name>
+//   janus ide status
+//   janus ide list
+//   janus ide enable --ide=<id>
+//   janus ide disable --ide=<id>
 //   janus remove                    (completely remove the local install)
 //   janus update                    (placeholder — no implementation yet)
 //   janus __serve --port=N          (internal: background server process)
@@ -22,9 +29,23 @@ import { createServer } from 'node:net'
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import { registerRoutes } from '../janus-api/src/routes/index'
-import { addSseClient } from '../janus-api/src/events'
+import { addSseClient, onScanChanged } from '../janus-api/src/events'
 import { ensurePortableLayout } from '../janus-api/src/app-paths'
 import { startFileWatcher } from '../janus-api/src/services/watcher.service'
+import { settingsStore } from '../janus-api/src/services/settings-store'
+import { scannerService } from '../janus-api/src/services/scanner.service'
+import { resourceService } from '../janus-api/src/services/resource.service'
+import {
+  applyMcpEnableCascade,
+  removeUnselectedPlatformFolders,
+  syncEnabledPlatformsToProjects
+} from '../janus-api/src/services/platform-sync.service'
+import { PLATFORM_IDS, PLATFORM_LABELS, type PlatformId } from '../janus-api/src/shared/types'
+
+// Build stamp injected by scripts/build-janus-exe.ps1 via esbuild --define.
+declare const __JANUS_VERSION__: string | undefined
+const JANUS_VERSION: string =
+  typeof __JANUS_VERSION__ === 'undefined' ? 'dev' : __JANUS_VERSION__
 
 // ---------------------------------------------------------------------------
 // Paths & environment
@@ -41,7 +62,7 @@ process.env.JANUS_APP_ROOT = process.env.JANUS_APP_ROOT || installDir
 
 // Default port used by every command unless the user changes it (janus port --port=N,
 // persisted top-level in settings.json) or overrides it per invocation (--port=N).
-const DEFAULT_PORT = 64850
+const DEFAULT_PORT = 47911
 
 const SERVER_FLAG = '__serve'
 const SERVER_ARG = `--port=`
@@ -372,6 +393,10 @@ async function serve(port: number): Promise<void> {
 
   ensurePortableLayout()
   startFileWatcher()
+  // Keep the scan cache warm: refresh on watcher events (in-process) and on a
+  // fixed interval, so page reads serve the latest background update instantly.
+  onScanChanged(() => scannerService.scheduleBackgroundRefresh(settingsStore.get()))
+  scannerService.startBackgroundUpdates(() => settingsStore.get())
 
   const app = Fastify({ logger: false })
 
@@ -467,6 +492,7 @@ const USAGE = `Janus local CLI
 Usage:
   janus doctor                          Check installation health
   janus status                          Show install and service status
+  janus version                         Show the Janus version
   janus help                            Show this help
   janus run [--port=N] [--no-open]
                                         Run API + WebUI in the foreground and open
@@ -480,6 +506,14 @@ Usage:
   janus service status                  Show background service status
   janus service restart [--port=N]      Restart the background service
                                         (default: the configured port)
+  janus skills list                     List all skills across projects and globals
+  janus skills delete --skill=<name>    Delete a skill (moved to the Janus trash)
+  janus skills rename --skill=<name> --new-name=<name>
+                                        Rename a skill everywhere it is installed
+  janus ide status                      Summarize enabled/disabled IDEs/CLIs
+  janus ide list                        List every IDE/CLI with its state and paths
+  janus ide enable --ide=<id>           Enable an IDE/CLI and sync it into projects
+  janus ide disable --ide=<id>          Disable an IDE/CLI and purge its project folders
   janus remove                          Completely remove the local Janus install
   janus update                          Update Janus (not implemented yet)
 `
@@ -516,6 +550,23 @@ function parsePortFlag(argv: string[]): { port: number | null; rest: string[]; e
 function fail(msg: string): never {
   console.error(msg)
   process.exit(1)
+}
+
+function parseNamedFlag(argv: string[], flag: string): string | null {
+  const prefix = `--${flag}=`
+  const eq = argv.find((a) => a.startsWith(prefix))
+  if (eq) return eq.slice(prefix.length).trim() || null
+  const i = argv.findIndex((a) => a === `--${flag}`)
+  if (i >= 0 && i + 1 < argv.length && !argv[i + 1].startsWith('--')) {
+    return argv[i + 1].trim() || null
+  }
+  return null
+}
+
+function requireNamedFlag(argv: string[], flag: string, usage: string): string {
+  const value = parseNamedFlag(argv, flag)
+  if (!value) fail(`--${flag} is required.\nUsage: ${usage}`)
+  return value
 }
 
 async function cmdServiceStart(argv: string[]): Promise<number> {
@@ -872,6 +923,157 @@ async function cmdDoctor(): Promise<number> {
 }
 
 // ---------------------------------------------------------------------------
+// version / skills / ide commands
+// ---------------------------------------------------------------------------
+
+function cmdVersion(): number {
+  console.log(`Janus ${JANUS_VERSION}`)
+  return 0
+}
+
+async function cmdSkillsList(): Promise<number> {
+  ensurePortableLayout()
+  const settings = settingsStore.get()
+  const scan = await scannerService.scanAll(settings)
+  const summaries = await resourceService.getGroupSummaries(scan, settings, 'skill')
+  if (summaries.length === 0) {
+    console.log('No skills found (check your projects and enabled IDEs/CLIs with: janus ide list).')
+    return 0
+  }
+  for (const s of summaries) {
+    const flags = [
+      `${s.usedProjectCount}/${s.totalProjectCount} projects`,
+      s.inGlobal ? 'global' : null,
+      s.mandatory ? 'mandatory' : null,
+      s.structureOk ? null : 'structure-warning'
+    ].filter(Boolean).join(', ')
+    const desc = s.description ? `  ${s.description}` : ''
+    console.log(`${s.name.padEnd(32)} [~${s.tokenEstimate} tok] (${flags})${desc}`)
+  }
+  console.log(`\n${summaries.length} skill${summaries.length === 1 ? '' : 's'}`)
+  return 0
+}
+
+async function cmdSkillsDelete(argv: string[]): Promise<number> {
+  const name = requireNamedFlag(argv, 'skill', 'janus skills delete --skill=<name>')
+  ensurePortableLayout()
+  const settings = settingsStore.get()
+  const scan = await scannerService.scanAll(settings)
+  if (!resourceService.findCanonicalInstance(scan, 'skill', name)) {
+    console.error(`Skill not found: ${name}`)
+    return 1
+  }
+  try {
+    await resourceService.deleteResource(scan, 'skill', name)
+  } catch (err) {
+    fail(`Failed to delete skill "${name}": ${err instanceof Error ? err.message : String(err)}`)
+  }
+  console.log(`Skill "${name}" deleted (moved to the Janus trash).`)
+  return 0
+}
+
+async function cmdSkillsRename(argv: string[]): Promise<number> {
+  const name = requireNamedFlag(argv, 'skill', 'janus skills rename --skill=<name> --new-name=<name>')
+  const newName = requireNamedFlag(argv, 'new-name', 'janus skills rename --skill=<name> --new-name=<name>')
+  ensurePortableLayout()
+  const settings = settingsStore.get()
+  const scan = await scannerService.scanAll(settings)
+  if (!resourceService.findCanonicalInstance(scan, 'skill', name)) {
+    console.error(`Skill not found: ${name}`)
+    return 1
+  }
+  try {
+    await resourceService.renameResource(scan, 'skill', name, newName)
+  } catch (err) {
+    fail(`Failed to rename skill "${name}": ${err instanceof Error ? err.message : String(err)}`)
+  }
+  console.log(`Skill renamed: ${name} -> ${newName}`)
+  return 0
+}
+
+function resolvePlatformId(raw: string): PlatformId {
+  const lower = raw.trim().toLowerCase()
+  const byId = PLATFORM_IDS.find((id) => id === lower)
+  if (byId) return byId
+  const byLabel = PLATFORM_IDS.find((id) => PLATFORM_LABELS[id].toLowerCase() === lower)
+  if (byLabel) return byLabel
+  fail(
+    `Unknown IDE/CLI: "${raw}". Known ids: ${PLATFORM_IDS.join(', ')} ` +
+    `(or labels: ${PLATFORM_IDS.map((id) => PLATFORM_LABELS[id]).join(', ')}).`
+  )
+}
+
+async function cmdIdeList(): Promise<number> {
+  const settings = settingsStore.get()
+  for (const p of settings.platforms) {
+    const state = p.enabled ? '[ON ]' : '[OFF]'
+    const rootMissing = p.enabled && !existsSync(p.rootPath) ? ' (root folder missing)' : ''
+    console.log(
+      `${state} ${p.id.padEnd(12)} ${PLATFORM_LABELS[p.id].padEnd(12)} ` +
+      `root=${p.rootPath}${rootMissing}  projectDir=${p.projectDirName}`
+    )
+  }
+  return 0
+}
+
+async function cmdIdeStatus(): Promise<number> {
+  const settings = settingsStore.get()
+  const enabled = settings.platforms.filter((p) => p.enabled)
+  const disabled = settings.platforms.filter((p) => !p.enabled)
+  console.log(`IDEs/CLIs: ${enabled.length} enabled, ${disabled.length} disabled (${settings.platforms.length} total)`)
+  console.log(`Enabled:   ${enabled.map((p) => PLATFORM_LABELS[p.id]).join(', ') || '(none)'}`)
+  console.log(`Disabled:  ${disabled.map((p) => PLATFORM_LABELS[p.id]).join(', ') || '(none)'}`)
+  console.log(`Projects:  ${settings.projectRoots.reduce((n, r) => n + r.projects.length, 0)} configured`)
+  for (const p of enabled) {
+    if (!existsSync(p.rootPath)) {
+      console.warn(`Warning: enabled ${PLATFORM_LABELS[p.id]} root folder is missing: ${p.rootPath}`)
+    }
+  }
+  return 0
+}
+
+// Mirrors PUT /api/settings' platform-change handling: mcp enable cascade,
+// folder purge on disable, then re-sync of enabled platforms into projects.
+async function setIdeEnabled(raw: string, enabled: boolean): Promise<number> {
+  const id = resolvePlatformId(raw)
+  const settings = settingsStore.get()
+  const platform = settings.platforms.find((p) => p.id === id)
+  if (!platform) fail(`Platform "${id}" is not configured in settings.`)
+  if (platform.enabled === enabled) {
+    console.log(`${PLATFORM_LABELS[id]} is already ${enabled ? 'enabled' : 'disabled'}.`)
+    return 0
+  }
+
+  const previousPlatforms = settings.platforms
+  const nextPlatforms = previousPlatforms.map((p) => (p.id === id ? { ...p, enabled } : p))
+  const mcpEnabled = await applyMcpEnableCascade(
+    previousPlatforms,
+    nextPlatforms,
+    settings.mcpEnabled ?? {}
+  )
+  settingsStore.save({ ...settings, platforms: nextPlatforms, mcpEnabled })
+
+  if (!enabled) {
+    try {
+      await removeUnselectedPlatformFolders(previousPlatforms, nextPlatforms)
+    } catch (err) {
+      console.error(`Removing ${PLATFORM_LABELS[id]} project folders failed: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+  try {
+    await syncEnabledPlatformsToProjects()
+  } catch (err) {
+    console.error(`Project sync after ${enabled ? 'enable' : 'disable'} failed: ${err instanceof Error ? err.message : String(err)}`)
+  }
+
+  console.log(`${PLATFORM_LABELS[id]} ${enabled ? 'enabled' : 'disabled'}.`)
+  if (findJanusInstances('serve').length > 0) {
+    console.log('A running service picks the change up through its file watcher.')
+  }
+  return 0
+}
+
+// ---------------------------------------------------------------------------
 // Dispatch
 // ---------------------------------------------------------------------------
 
@@ -900,9 +1102,36 @@ async function main(): Promise<void> {
     case 'doctor':
       process.exit(await cmdDoctor())
       break
+    case 'version':
+    case '--version':
+      process.exit(cmdVersion())
+      break
     case 'status':
       process.exit(await cmdStatus())
       break
+    case 'skills': {
+      const sub = argv[1]
+      if (sub === 'list') process.exit(await cmdSkillsList())
+      else if (sub === 'delete') process.exit(await cmdSkillsDelete(argv.slice(2)))
+      else if (sub === 'rename') process.exit(await cmdSkillsRename(argv.slice(2)))
+      else {
+        console.error(`Unknown skills command: ${sub || '(missing)'}\n\n${USAGE}`)
+        process.exit(1)
+      }
+      break
+    }
+    case 'ide': {
+      const sub = argv[1]
+      if (sub === 'status') process.exit(await cmdIdeStatus())
+      else if (sub === 'list') process.exit(await cmdIdeList())
+      else if (sub === 'enable') process.exit(await setIdeEnabled(requireNamedFlag(argv.slice(2), 'ide', 'janus ide enable --ide=<id>'), true))
+      else if (sub === 'disable') process.exit(await setIdeEnabled(requireNamedFlag(argv.slice(2), 'ide', 'janus ide disable --ide=<id>'), false))
+      else {
+        console.error(`Unknown ide command: ${sub || '(missing)'}\n\n${USAGE}`)
+        process.exit(1)
+      }
+      break
+    }
     case 'service': {
       const sub = argv[1]
       if (sub === 'start') process.exit(await cmdServiceStart(argv.slice(2)))

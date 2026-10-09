@@ -1,12 +1,10 @@
 import type { UiFilterState, UiSearchField } from '@shared/types'
 import { ALL_PROJECTS_KEY, GLOBAL_KEY } from '@renderer/components/resources/ProjectFilterDropdown'
 
-export type ListableResourceType = 'skill' | 'rule' | 'hook' | 'subAgent'
+export type ListableResourceType = 'skill' | 'subAgent'
 
 const FILTER_KEYS: Record<ListableResourceType, string> = {
   skill: 'skills',
-  rule: 'rules',
-  hook: 'hooks',
   subAgent: 'subagents'
 }
 

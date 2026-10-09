@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Search, File, FileCode, FileJson, FileText, Trash } from 'lucide-react'
+import { File, FileCode, FileJson, FileText, Trash } from 'lucide-react'
 import type { ResourceGroupSummary, SkillResource, UiSearchField } from '@shared/types'
 import { cn } from '@renderer/lib/utils'
 import { MarkdownEditor } from '@renderer/components/MarkdownEditor'
 import { ProjectPanel } from '@renderer/components/resources/ProjectPanel'
+import { BrowserColumn, browserRowClass } from '@renderer/components/layout/BrowserColumn'
 import { ThreePanelLayout } from '@renderer/components/layout/ThreePanelLayout'
 import { useAppStore } from '@renderer/stores/appStore'
 import { showMessage } from '@renderer/stores/messageStore'
@@ -47,12 +48,6 @@ interface SkillListProps {
   onSearchFieldChange: (f: UiSearchField) => void
 }
 
-const SEARCH_FIELD_OPTIONS: { value: UiSearchField; label: string }[] = [
-  { value: 'name', label: 'Name' },
-  { value: 'tags', label: 'Tags' },
-  { value: 'category', label: 'Category' }
-]
-
 function SkillList({
   skills,
   loading,
@@ -64,83 +59,62 @@ function SkillList({
   searchField,
   onSearchFieldChange
 }: SkillListProps) {
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  const shown = sortDir === 'asc' ? skills : [...skills].reverse()
+
   return (
-    <aside className="w-full h-full flex flex-col">
-      <div className="px-3 py-2 border-b border-zinc-800">
-        <h2 className="text-xs font-medium text-zinc-400 mb-2">Skills · {skills.length}</h2>
-        <div className="flex gap-1.5">
-          <div className="relative flex-1 min-w-0">
-            <Search size={13} className="absolute left-2 top-1/2 -translate-y-1/2 text-zinc-500" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => onSearch(e.target.value)}
-              placeholder="Filter skills…"
-              className="w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1.5 pl-6 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500"
-            />
-          </div>
-          <select
-            value={searchField}
-            onChange={(e) => onSearchFieldChange(e.target.value as UiSearchField)}
-            aria-label="Search field"
-            title="Search in"
-            className="shrink-0 bg-zinc-900 border border-zinc-700 rounded px-1.5 py-1.5 text-xs text-zinc-300 cursor-pointer hover:bg-zinc-800 focus:outline-none focus:border-zinc-500"
-          >
-            {SEARCH_FIELD_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-      <nav className="flex-1 overflow-y-auto py-1">
-        {loading && skills.length === 0 ? (
-          <p className="px-3 py-4 text-xs text-zinc-500 text-center">Loading…</p>
-        ) : skills.length === 0 ? (
-          <p className="px-3 py-4 text-xs text-zinc-500 text-center">No skills found</p>
-        ) : (
-          skills.map((s) => {
-            const key = s.groupKey || s.name
-            const isSelected = key === selectedName
-            return (
-              <div
-                key={key}
-                className={cn(
-                  'group flex items-center border-l-2 transition-colors',
-                  isSelected
-                    ? 'bg-blue-600/20 border-blue-500'
-                    : 'border-transparent hover:bg-zinc-800'
-                )}
+    <BrowserColumn
+      title="Skills"
+      countLabel={String(skills.length)}
+      search={search}
+      onSearch={onSearch}
+      searchPlaceholder="Search skills..."
+      nameHeader={{
+        searchField,
+        onSearchFieldChange,
+        sortDir,
+        onToggleSort: () => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+      }}
+    >
+      {loading && skills.length === 0 ? (
+        <p className="px-3 py-4 text-xs text-zinc-500 text-center">Loading…</p>
+      ) : skills.length === 0 ? (
+        <p className="px-3 py-4 text-xs text-zinc-500 text-center">No skills found</p>
+      ) : (
+        shown.map((s) => {
+          const key = skillDisplayName(s.name)
+          const isSelected = key === selectedName
+          return (
+            <div key={key} className={browserRowClass(isSelected)}>
+              <button
+                type="button"
+                onClick={() => onSelect(key)}
+                className="flex-1 min-w-0 text-left px-2.5 py-1.5 text-[13px] truncate"
+                title={s.name}
               >
-                <button
-                  type="button"
-                  onClick={() => onSelect(key)}
-                  className={cn(
-                    'flex-1 min-w-0 text-left px-3 py-2 text-xs truncate flex items-center gap-1.5',
-                    isSelected ? 'text-blue-300' : 'text-zinc-300'
-                  )}
-                  title={s.name}
-                >
-                  <span className="truncate">{skillDisplayName(s.name)}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onDelete(s)
-                  }}
-                  className="p-1.5 mr-1 rounded text-zinc-600 opacity-0 group-hover:opacity-100 hover:text-red-400 hover:bg-zinc-700/60 transition-opacity"
-                  title={`Delete ${skillDisplayName(s.name)}`}
-                >
-                  <Trash size={12} strokeWidth={1.75} />
-                </button>
-              </div>
-            )
-          })
-        )}
-      </nav>
-    </aside>
+                {skillDisplayName(s.name)}
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onDelete(s)
+                }}
+                className={cn(
+                  'p-1.5 mr-1 rounded opacity-0 group-hover:opacity-100 transition-opacity',
+                  isSelected
+                    ? 'text-white/70 hover:text-white hover:bg-white/10'
+                    : 'text-zinc-600 hover:text-red-400 hover:bg-zinc-700/60'
+                )}
+                title={`Delete ${skillDisplayName(s.name)}`}
+              >
+                <Trash size={12} strokeWidth={1.75} />
+              </button>
+            </div>
+          )
+        })
+      )}
+    </BrowserColumn>
   )
 }
 
@@ -150,7 +124,7 @@ interface SkillContentProps {
   skillName: string | null
 }
 
-function SkillContent({ skillName }: SkillContentProps) {
+export function SkillContent({ skillName }: SkillContentProps) {
   const [resource, setResource] = useState<SkillResource | null>(null)
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [content, setContent] = useState('')
@@ -203,7 +177,12 @@ function SkillContent({ skillName }: SkillContentProps) {
     if (!confirmed) return
     const isSkillMd = fileBaseName(filePath) === 'SKILL.md'
     if (isSkillMd && skillName) {
-      await window.agentManager.writeSkillMd(filePath, value, skillName)
+      const { filePath: savedPath } = await window.agentManager.writeSkillMd(
+        filePath,
+        value,
+        skillName
+      )
+      if (savedPath !== filePath) setSelectedFile(savedPath)
     } else {
       await window.agentManager.writeFile(filePath, value)
     }
@@ -241,7 +220,7 @@ function SkillContent({ skillName }: SkillContentProps) {
   return (
     <div className="h-full flex flex-col min-h-0">
       {files.length > 1 && (
-        <div className="flex gap-1 px-3 py-2 border-b border-zinc-800 overflow-x-auto shrink-0">
+        <div className="flex gap-1 px-2 py-1.5 border-b border-surface-border overflow-x-auto shrink-0 bg-surface">
           {files.map((f) => {
             const Icon = fileIcon(f)
             return (
@@ -265,7 +244,7 @@ function SkillContent({ skillName }: SkillContentProps) {
         </div>
       )}
 
-      <div className="flex-1 min-h-0 p-3 overflow-hidden">
+      <div className="flex-1 min-h-0 overflow-hidden">
         {!selectedFile ? (
           <div className="h-full flex items-center justify-center text-zinc-500 text-sm">
             Select a file
@@ -306,7 +285,7 @@ export function SkillsPage() {
       setSkills(stats)
       // Auto-select first skill on initial load
       if (!soft && stats.length > 0) {
-        setSelected((prev) => prev ?? (stats[0].groupKey || stats[0].name))
+        setSelected((prev) => prev ?? skillDisplayName(stats[0].name))
       }
     } finally {
       if (!soft) setLoading(false)
@@ -343,7 +322,7 @@ export function SkillsPage() {
 
   const handleDelete = useCallback(
     async (row: ResourceGroupSummary) => {
-      const key = row.groupKey || row.name
+      const key = skillDisplayName(row.name)
       const confirmed = await showMessage({
         message: `Delete "${skillDisplayName(row.name)}" from all locations? Items are kept under .trash.`,
         confirm: true,
@@ -391,6 +370,10 @@ export function SkillsPage() {
             resourceName={selected}
             resourceLabel="skill"
             onRefresh={() => void refreshScan()}
+            onRemovedFromAllProjects={() => {
+              setSelected(null)
+              void load({ soft: true })
+            }}
           />
         }
         right={<SkillContent skillName={selected} />}

@@ -1,35 +1,45 @@
-import { existsSync, mkdirSync, readdirSync } from 'fs'
+import { existsSync } from 'fs'
 import { homedir } from 'os'
-import { basename, join } from 'path'
+import { basename, dirname, join } from 'path'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { v4 as uuidv4 } from 'uuid'
-import type { AppSettings, PlatformId, ResourceType } from '../shared/types'
+import type { AppSettings, PlatformId, ProjectInfo, ProjectRootConfig, ResourceType } from '../shared/types'
 import { DEFAULT_PLATFORM_PROJECT_DIRS } from '../shared/types'
 import { createDefaultSettings } from '../shared/defaults'
-import { expandHome, skillFolderNameFromKey, stableId } from '../shared/utils'
-import { getAppRoot, getInstructionsPath } from '../app-paths'
+import { expandHome, parseFrontmatter, skillFolderNameFromKey, stableId } from '../shared/utils'
+import { getAppRoot } from '../app-paths'
 import { assignmentService } from '../services/assignment.service'
 import { agentDebugLog } from '../services/debug-log'
 import { fileService } from '../services/file.service'
 import { importedProjectsStore } from '../services/imported-projects-store'
 import { platformCleanupService } from '../services/platform-cleanup.service'
 import { probeMcpServers } from '../services/mcp-probe.service'
-import { applyMcpEnableCascade, syncEnabledPlatformsToProjects } from '../services/platform-sync.service'
+import {
+  applyMcpEnableCascade,
+  removeUnselectedPlatformFolders,
+  syncEnabledPlatformsToProjects
+} from '../services/platform-sync.service'
 import { projectBootstrapService } from '../services/project-bootstrap.service'
+import { normalizeScanPath, rescanProjectRoots } from '../services/project-root-rescan.service'
 import { resourceService } from '../services/resource.service'
 import { scannerService } from '../services/scanner.service'
 import { settingsStore } from '../services/settings-store'
 import { applyStartupSetting } from '../services/startup.service'
-import { startFileWatcher, stopFileWatcher } from '../services/watcher.service'
+import { applyUpdate, checkForUpdates } from '../services/update.service'
+import {
+  onProjectRootsAdded,
+  startFileWatcher,
+  stopFileWatcher
+} from '../services/watcher.service'
 import { getAdapter } from '../platforms'
 import { refactorWithActiveApi } from '../services/api-refactor.service'
 
 type NonMcpResourceType = Exclude<ResourceType, 'mcp'>
-type CreatableResourceType = 'skill' | 'rule' | 'hook' | 'subAgent'
+type CreatableResourceType = 'skill' | 'subAgent'
 
-const RESOURCE_TYPES = new Set<ResourceType>(['skill', 'rule', 'mcp', 'hook', 'subAgent'])
-const NON_MCP_RESOURCE_TYPES = new Set<NonMcpResourceType>(['skill', 'rule', 'hook', 'subAgent'])
-const CREATABLE_RESOURCE_TYPES = new Set<CreatableResourceType>(['skill', 'rule', 'hook', 'subAgent'])
+const RESOURCE_TYPES = new Set<ResourceType>(['skill', 'mcp', 'subAgent'])
+const NON_MCP_RESOURCE_TYPES = new Set<NonMcpResourceType>(['skill', 'subAgent'])
+const CREATABLE_RESOURCE_TYPES = new Set<CreatableResourceType>(['skill', 'subAgent'])
 
 function isResourceType(value: string): value is ResourceType {
   return RESOURCE_TYPES.has(value as ResourceType)
@@ -69,7 +79,41 @@ async function restartWatcher(): Promise<void> {
   startFileWatcher()
 }
 
+/** Merge discovered projects into the root with the same scanPath, else create one. */
+function attachProjectsToRoots(
+  roots: ProjectRootConfig[],
+  scanPath: string,
+  projects: ProjectInfo[]
+): ProjectRootConfig[] {
+  const norm = normalizeScanPath(scanPath)
+  const existing = roots.find((r) => normalizeScanPath(r.scanPath) === norm)
+  if (existing) {
+    const known = new Set(existing.projects.map((p) => p.id))
+    const fresh = projects
+      .filter((p) => !known.has(p.id))
+      .map((p) => ({ ...p, rootId: existing.id }))
+    if (fresh.length === 0) return roots
+    return roots.map((r) =>
+      r.id === existing.id
+        ? {
+            ...r,
+            projects: [...r.projects, ...fresh].sort((a, b) => a.name.localeCompare(b.name))
+          }
+        : r
+    )
+  }
+  const id = uuidv4()
+  return [...roots, { id, scanPath, projects: projects.map((p) => ({ ...p, rootId: id })) }]
+}
+
 export async function registerRoutes(app: FastifyInstance): Promise<void> {
+  // Repos auto-discovered under scan roots at runtime must inherit mandatory skills.
+  onProjectRootsAdded((added) => {
+    void resourceService
+      .syncMandatoryForNewProjects(added.map((p) => p.id))
+      .catch(() => {})
+  })
+
   app.get(
     '/api/app/root',
     route(async () => getAppRoot())
@@ -77,7 +121,10 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
 
   app.get(
     '/api/settings',
-    route(async () => settingsStore.get())
+    route(async () => {
+      importedProjectsStore.pruneMissingOnDisk()
+      return settingsStore.get()
+    })
   )
 
   app.put(
@@ -103,6 +150,11 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
 
       if (platformsChanged) {
         try {
+          await removeUnselectedPlatformFolders(previous.platforms, settings.platforms)
+        } catch (err) {
+          console.error('Unselected IDE folder purge after settings save failed:', err)
+        }
+        try {
           await syncEnabledPlatformsToProjects()
         } catch (err) {
           console.error('Platform sync after settings save failed:', err)
@@ -110,6 +162,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       }
 
       await restartWatcher()
+      scannerService.scheduleBackgroundRefresh(settingsStore.get())
       return settingsStore.get()
     })
   )
@@ -124,16 +177,51 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   )
 
   app.get(
+    '/api/updates/check',
+    route(async () => checkForUpdates())
+  )
+
+  app.post(
+    '/api/updates/apply',
+    route(async () => applyUpdate())
+  )
+
+  app.get(
     '/api/scan',
     route(async (request) => {
       const query = request.query as { probeMcps?: string }
       const probeMcps = query.probeMcps === 'true'
       const startedAt = Date.now()
       agentDebugLog('B', 'routes/index.ts:scan', 'HTTP scan invoked', { probeMcps })
-      const result = await scannerService.scanAll(settingsStore.get(), { probeMcps })
+      importedProjectsStore.pruneMissingOnDisk()
+      // Non-probe reads serve the latest background scan immediately;
+      // freshness is maintained by the watcher/timer-driven refresh.
+      const result = probeMcps
+        ? await scannerService.scanAll(settingsStore.get(), { probeMcps })
+        : await scannerService.getScanForRead(settingsStore.get())
       agentDebugLog('B', 'routes/index.ts:scan:done', 'HTTP scan done', {
         durationMs: Date.now() - startedAt,
         probeMcps
+      })
+      return result
+    })
+  )
+
+  app.post(
+    '/api/sync',
+    route(async () => {
+      const startedAt = Date.now()
+      agentDebugLog('B', 'routes/index.ts:sync', 'HTTP sync invoked', {})
+      await syncEnabledPlatformsToProjects()
+      importedProjectsStore.pruneMissingOnDisk()
+      const added = await rescanProjectRoots()
+      if (added.length > 0) {
+        await resourceService.syncMandatoryForNewProjects(added.map((p) => p.id))
+        await restartWatcher()
+      }
+      const result = await scannerService.scanAll(settingsStore.get())
+      agentDebugLog('B', 'routes/index.ts:sync:done', 'HTTP sync done', {
+        durationMs: Date.now() - startedAt
       })
       return result
     })
@@ -205,25 +293,28 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         throw new Error('filePath, content, and currentResourceName are required')
       }
 
-      const nameMatch = body.content.match(/^---[\s\S]*?\nname:\s*(.+)/m)
-      const frontmatterName = nameMatch ? nameMatch[1].trim() : null
-
-      await fileService.writeText(body.filePath, body.content)
+      const fmName = parseFrontmatter(body.content).frontmatter.name
+      const frontmatterName =
+        typeof fmName === 'string' && fmName.trim() ? fmName.trim() : null
 
       const folderName = skillFolderNameFromKey(body.currentResourceName)
       const folderLeaf =
         folderName.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? folderName
+      let targetPath = body.filePath
+
       if (frontmatterName && frontmatterName !== folderName && frontmatterName !== folderLeaf) {
         const settings = settingsStore.get()
         const scan = await scannerService.scanAll(settings)
-        try {
-          await resourceService.renameResource(scan, 'skill', body.currentResourceName, frontmatterName)
-        } catch {
-          // file was saved; rename failure is non-fatal
-        }
+        await resourceService.renameResource(scan, 'skill', body.currentResourceName, frontmatterName)
+        const newLeaf = basename(frontmatterName.replace(/\\/g, '/'))
+        const skillRoot = dirname(body.filePath)
+        targetPath = join(dirname(skillRoot), newLeaf, basename(body.filePath))
       }
 
-      return true
+      await fileService.writeText(targetPath, body.content)
+      await scannerService.refresh(settingsStore.get())
+
+      return { filePath: targetPath }
     })
   )
 
@@ -252,7 +343,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       })
 
       const settings = settingsStore.get()
-      const scan = await scannerService.scanAll(settings)
+      const scan = await scannerService.getScanForRead(settings)
       const afterScanAt = Date.now()
       const summaries = await resourceService.getGroupSummaries(scan, settings, resourceType)
 
@@ -275,7 +366,9 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       if (!isNonMcpResourceType(resourceType)) {
         throw new Error(`Invalid resource type: ${resourceType}`)
       }
-      return resourceService.applyAllToAllProjects(resourceType)
+      const count = await resourceService.applyAllToAllProjects(resourceType)
+      await scannerService.refresh(settingsStore.get())
+      return count
     })
   )
 
@@ -295,6 +388,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       const settings = settingsStore.get()
       const scan = await scannerService.scanAll(settings)
       await resourceService.renameResource(scan, resourceType, body.oldName, body.newName)
+      await scannerService.refresh(settings)
       return true
     })
   )
@@ -313,6 +407,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       }
 
       await resourceService.createResource(resourceType, body.name, body.projectIds)
+      await scannerService.refresh(settingsStore.get())
       return true
     })
   )
@@ -329,7 +424,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       }
 
       const settings = settingsStore.get()
-      const scan = await scannerService.scanAll(settings)
+      const scan = await scannerService.getScanForRead(settings)
       return resourceService.getProjectMatrix(scan, settings, resourceType, resourceName)
     })
   )
@@ -355,6 +450,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         resourceName,
         body.assignedProjectIds
       )
+      await scannerService.refresh(settingsStore.get())
       return true
     })
   )
@@ -381,6 +477,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         body.platformId as PlatformId,
         body.assigned
       )
+      await scannerService.refresh(settingsStore.get())
       return true
     })
   )
@@ -402,6 +499,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       }
 
       await resourceService.setMandatory(resourceType, resourceName, body.mandatory)
+      await scannerService.refresh(settingsStore.get())
       return true
     })
   )
@@ -418,7 +516,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       }
 
       const settings = settingsStore.get()
-      const scan = await scannerService.scanAll(settings)
+      const scan = await scannerService.getScanForRead(settings)
       return resourceService.findCanonicalInstance(scan, resourceType, resourceName)
     })
   )
@@ -437,6 +535,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       const settings = settingsStore.get()
       const scan = await scannerService.scanAll(settings)
       await resourceService.deleteResource(scan, resourceType, resourceName)
+      await scannerService.refresh(settings)
       return true
     })
   )
@@ -554,6 +653,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         }
       })
 
+      scannerService.scheduleBackgroundRefresh(settingsStore.get())
       return settingsStore.get()
     })
   )
@@ -591,14 +691,19 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         enabledIds
       )
 
-      const id = uuidv4()
-      importedProjectsStore.update((roots) => [...roots, { id, scanPath: body.scanPath!, projects }])
+      importedProjectsStore.update((roots) =>
+        attachProjectsToRoots(roots, body.scanPath!, projects)
+      )
 
       const newProjectIds = projects.filter((p) => !previousIds.has(p.id)).map((p) => p.id)
       await resourceService.syncMandatoryForNewProjects(newProjectIds)
       await restartWatcher()
+      scannerService.scheduleBackgroundRefresh(settingsStore.get())
 
-      return { id, projects }
+      const storedRoot = importedProjectsStore
+        .get()
+        .find((r) => normalizeScanPath(r.scanPath) === normalizeScanPath(body.scanPath!))
+      return { id: storedRoot?.id ?? null, projects }
     })
   )
 
@@ -613,24 +718,28 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       const previousIds = new Set(
         importedProjectsStore.get().flatMap((r) => r.projects.map((p) => p.id))
       )
-      const collected: Array<{ id: string; name: string; path: string; rootId: string }> = []
+      const collected: Array<{ project: ProjectInfo; sourceScanPath: string }> = []
 
       for (const scanPath of body.paths) {
         if (existsSync(join(scanPath, '.git'))) {
           collected.push({
-            id: stableId(scanPath),
-            name: basename(scanPath),
-            path: scanPath,
-            rootId: scanPath
+            project: {
+              id: stableId(scanPath),
+              name: basename(scanPath),
+              path: scanPath,
+              rootId: scanPath
+            },
+            sourceScanPath: scanPath
           })
         } else {
+          // Not a repository itself: load every `.git` project found underneath.
           const discovered = await scannerService.discoverGitProjects(scanPath)
-          collected.push(...discovered)
+          collected.push(...discovered.map((project) => ({ project, sourceScanPath: scanPath })))
         }
       }
 
       const seen = new Set(importedProjectsStore.get().flatMap((r) => r.projects.map((p) => p.id)))
-      const newProjects = collected.filter((p) => !seen.has(p.id))
+      const newProjects = collected.filter((c) => !seen.has(c.project.id))
       if (newProjects.length === 0) {
         return { imported: 0, projects: [] }
       }
@@ -641,25 +750,33 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         .map((p) => p.id)
 
       await projectBootstrapService.bootstrapProjects(
-        newProjects.map((p) => p.path),
+        newProjects.map((c) => c.project.path),
         enabledIds
       )
 
-      const rootId = uuidv4()
-      importedProjectsStore.update((roots) => [
-        ...roots,
-        {
-          id: rootId,
-          scanPath: body.paths[0] ?? 'imported',
-          projects: newProjects.map((p) => ({ ...p, rootId }))
+      importedProjectsStore.update((roots) => {
+        let next = roots
+        const byScanPath = new Map<string, ProjectInfo[]>()
+        for (const { project, sourceScanPath } of newProjects) {
+          const bucket = byScanPath.get(sourceScanPath)
+          if (bucket) bucket.push(project)
+          else byScanPath.set(sourceScanPath, [project])
         }
-      ])
+        for (const [scanPath, projects] of byScanPath) {
+          next = attachProjectsToRoots(next, scanPath, projects)
+        }
+        return next
+      })
 
-      const newProjectIds = newProjects.filter((p) => !previousIds.has(p.id)).map((p) => p.id)
+      const newProjectIds = newProjects
+        .map((c) => c.project)
+        .filter((p) => !previousIds.has(p.id))
+        .map((p) => p.id)
       await resourceService.syncMandatoryForNewProjects(newProjectIds)
       await restartWatcher()
+      scannerService.scheduleBackgroundRefresh(settingsStore.get())
 
-      return { imported: newProjects.length, projects: newProjects }
+      return { imported: newProjects.length, projects: newProjects.map((c) => c.project) }
     })
   )
 
@@ -678,6 +795,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       )
 
       await restartWatcher()
+      scannerService.scheduleBackgroundRefresh(settingsStore.get())
       return true
     })
   )
@@ -703,72 +821,6 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     })
   )
 
-  app.get(
-    '/api/instructions',
-    route(async () => {
-      const dir = getInstructionsPath()
-      if (!existsSync(dir)) {
-        mkdirSync(dir, { recursive: true })
-        return []
-      }
-      return readdirSync(dir)
-        .filter((f) => f.endsWith('.md'))
-        .sort()
-    })
-  )
-
-  app.get(
-    '/api/instructions/:name',
-    route(async (request) => {
-      const { name } = request.params as { name: string }
-      const filePath = getInstructionsPath(name)
-      if (!existsSync(filePath)) {
-        return ''
-      }
-      return fileService.readText(filePath)
-    })
-  )
-
-  app.put(
-    '/api/instructions/:name',
-    route(async (request) => {
-      const { name } = request.params as { name: string }
-      const body = request.body as { content?: string }
-      if (body.content === undefined) {
-        throw new Error('content is required')
-      }
-
-      const dir = getInstructionsPath()
-      if (!existsSync(dir)) {
-        mkdirSync(dir, { recursive: true })
-      }
-      await fileService.writeText(getInstructionsPath(name), body.content)
-      return true
-    })
-  )
-
-  app.post(
-    '/api/instructions',
-    route(async (request) => {
-      const body = request.body as { name?: string }
-      if (!body.name) {
-        throw new Error('name is required')
-      }
-
-      const dir = getInstructionsPath()
-      if (!existsSync(dir)) {
-        mkdirSync(dir, { recursive: true })
-      }
-
-      const safeName = body.name.endsWith('.md') ? body.name : `${body.name}.md`
-      const filePath = getInstructionsPath(safeName)
-      if (!existsSync(filePath)) {
-        await fileService.writeText(filePath, `# ${body.name.replace(/\.md$/, '')}\n\n`)
-      }
-      return safeName
-    })
-  )
-
   app.post(
     '/api/refactor',
     route(async (request) => {
@@ -781,7 +833,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         throw new Error('resourceType, content, and userPrompt are required')
       }
       return refactorWithActiveApi({
-        resourceType: body.resourceType as 'skill' | 'rule' | 'hook' | 'subAgent',
+        resourceType: body.resourceType as 'skill' | 'subAgent',
         content: body.content,
         userPrompt: body.userPrompt
       })

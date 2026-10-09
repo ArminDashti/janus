@@ -91,11 +91,6 @@ export function extractResourceMeta(
   return out
 }
 
-export function extractHookMeta(
-  entry: Record<string, unknown>
-): Partial<ResourceMeta> {
-  return extractResourceMeta(entry)
-}
 
 const LAST_UPDATED_RE = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/
 const SEMVER_RE = /^\d+\.\d+\.\d+$/
@@ -146,32 +141,6 @@ export function validateSkillStructure(frontmatter: Record<string, unknown>): {
   return { ok: true, reason: '' }
 }
 
-export function validateRuleStructure(frontmatter: Record<string, unknown>): {
-  ok: boolean
-  reason: string
-} {
-  if (frontmatter.description === undefined) {
-    return { ok: false, reason: 'Missing description' }
-  }
-  if (frontmatter.globs === undefined) {
-    return { ok: false, reason: 'Missing globs' }
-  }
-  if (frontmatter.alwaysApply === undefined) {
-    return { ok: false, reason: 'Missing alwaysApply' }
-  }
-  if (!hasNestedMetadata(frontmatter)) {
-    return { ok: false, reason: 'Missing nested metadata block' }
-  }
-  const nested = frontmatter.metadata as Record<string, unknown>
-  const meta = extractResourceMeta(frontmatter)
-  const tags = asStringArray(nested.tags)
-  const complete = isCompleteResourceMeta({ ...meta, tags })
-  if (!complete) {
-    return { ok: false, reason: 'Incomplete metadata (version, author, tags, last_updated, uuid)' }
-  }
-  return { ok: true, reason: '' }
-}
-
 export function validateSubAgentStructure(frontmatter: Record<string, unknown>): {
   ok: boolean
   reason: string
@@ -191,33 +160,6 @@ export function validateSubAgentStructure(frontmatter: Record<string, unknown>):
   const complete = isCompleteResourceMeta({ ...meta, tags })
   if (!complete) {
     return { ok: false, reason: 'Incomplete metadata (version, author, tags, last_updated, uuid)' }
-  }
-  return { ok: true, reason: '' }
-}
-
-export function validateHookStructure(entry: Record<string, unknown>): {
-  ok: boolean
-  reason: string
-} {
-  if (!asString(entry.command)) {
-    return { ok: false, reason: 'Missing command' }
-  }
-  if (entry.type === undefined) {
-    return { ok: false, reason: 'Missing type' }
-  }
-  const meta = extractHookMeta(entry)
-  const tags = asStringArray(entry.tags)
-  const complete = isCompleteResourceMeta({
-    ...meta,
-    tags,
-    version: asString(entry.version) || meta.version,
-    author: asString(entry.author) || meta.author
-  })
-  if (!complete) {
-    return {
-      ok: false,
-      reason: 'Incomplete metadata (version, author, tags, last_updated, uuid)'
-    }
   }
   return { ok: true, reason: '' }
 }
@@ -291,35 +233,6 @@ Describe what this skill does.
 `
 }
 
-export function ruleTemplate(
-  name: string,
-  options?: {
-    description?: string
-    tags?: string[]
-    meta?: Partial<ResourceMeta>
-  }
-): string {
-  const meta = ensureResourceMeta(options?.meta, {
-    tags: options?.tags ?? [],
-    version: '1.0.0',
-    author: 'Armin Dashti'
-  })
-  const description = (options?.description ?? '').trim()
-  const descriptionBlock = description
-    ? `description: >-\n  ${description.split(/\r?\n/).join('\n  ')}`
-    : 'description: >-\n  '
-
-  return `---
-${descriptionBlock}
-globs:
-alwaysApply: false
-${serializeMetadataBlock(meta)}
----
-
-# ${name}
-`
-}
-
 export function subAgentTemplate(
   name: string,
   options?: {
@@ -347,30 +260,6 @@ ${serializeMetadataBlock(meta)}
 
 You are a sub-agent specialized in ${name}.
 `
-}
-
-export function hookEntryTemplate(
-  name: string,
-  options?: {
-    event?: string
-    tags?: string[]
-    meta?: Partial<ResourceMeta>
-  }
-): Record<string, unknown> {
-  const meta = ensureResourceMeta(options?.meta, {
-    tags: options?.tags ?? [],
-    version: '1.0.0',
-    author: 'Armin Dashti'
-  })
-  return {
-    command: `hooks/${name}.sh`,
-    type: 'command',
-    version: meta.version,
-    author: meta.author,
-    tags: meta.tags,
-    last_updated: meta.last_updated,
-    uuid: meta.uuid
-  }
 }
 
 /** Merge metadata into existing markdown frontmatter text; preserves body. */

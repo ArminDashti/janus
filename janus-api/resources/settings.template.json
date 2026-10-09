@@ -33,18 +33,17 @@
   },
   "assignments": {
     "skills": {},
-    "rules": {},
     "mcps": {},
-    "hooks": {},
     "subAgents": {},
     "tools": {}
   },
   "mandatoryForAllProjects": {
     "skills": {},
-    "rules": {},
-    "hooks": {},
     "subAgents": {},
     "tools": {}
+  },
+  "updates": {
+    "checkOnStartup": true
   },
   "uiFilters": {}
 }

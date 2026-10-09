@@ -1,14 +1,9 @@
-import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'fs'
-import { join } from 'path'
-import { getAppRoot } from '../app-paths'
 import { settingsStore } from './settings-store'
 
-export type OpenRouterRefactorType = 'skill' | 'rule' | 'hook' | 'subAgent'
+export type OpenRouterRefactorType = 'skill' | 'subAgent'
 
 const TYPE_LABELS: Record<OpenRouterRefactorType, string> = {
   skill: 'Skills',
-  rule: 'Rules',
-  hook: 'Hooks',
   subAgent: 'Sub-agent'
 }
 
@@ -24,12 +19,6 @@ export interface OpenRouterRefactorResult {
 }
 
 function loadInstructionTemplate(): string {
-  try {
-    const path = join(getAppRoot(), 'instructions', 'openrouter.md')
-    if (existsSync(path)) return readFileSync(path, 'utf-8')
-  } catch {
-    // fall through to default
-  }
   return [
     '# OpenRouter Instruction',
     '',

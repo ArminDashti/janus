@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Check } from 'lucide-react'
+import { Check, Palette, Type } from 'lucide-react'
 import type { AppSettings } from '@shared/types'
 import { useAppStore } from '@renderer/stores/appStore'
 import { showMessage } from '@renderer/stores/messageStore'
 import { applyTheme, isThemeId, THEME_OPTIONS, type ThemeId } from '@renderer/lib/themes'
 import { applyFont, DEFAULT_FONT, FONT_OPTIONS, isFontId } from '@renderer/lib/fonts'
 import { cn } from '@renderer/lib/utils'
+import { SettingsSection } from '@renderer/components/settings/SettingsSection'
 
 interface AppearanceTabProps {
   settings: AppSettings
@@ -59,13 +60,12 @@ export function AppearanceTab({ settings, onChange }: AppearanceTabProps) {
   }
 
   return (
-    <div className="space-y-8">
-      <section className="space-y-3">
-        <h3 className="text-sm font-medium text-zinc-400 uppercase">Appearance</h3>
-        <p className="text-xs text-zinc-500">
-          Pick a theme. Popular editor color schemes are included — changes apply instantly and
-          are saved automatically.
-        </p>
+    <div className="space-y-6">
+      <SettingsSection
+        icon={Palette}
+        title="Theme"
+        description="Popular editor color schemes are included — changes apply instantly and are saved automatically."
+      >
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 max-w-4xl">
           {THEME_OPTIONS.map((option) => {
             const selected = option.id === theme
@@ -101,10 +101,13 @@ export function AppearanceTab({ settings, onChange }: AppearanceTabProps) {
             )
           })}
         </div>
+      </SettingsSection>
 
-        <p className="text-xs text-zinc-500 pt-1">
-          Font. Changes apply instantly and are saved automatically.
-        </p>
+      <SettingsSection
+        icon={Type}
+        title="Font"
+        description="Changes apply instantly and are saved automatically."
+      >
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 max-w-4xl">
           {FONT_OPTIONS.map((option) => {
             const selected = option.id === font
@@ -127,7 +130,7 @@ export function AppearanceTab({ settings, onChange }: AppearanceTabProps) {
             )
           })}
         </div>
-      </section>
+      </SettingsSection>
     </div>
   )
 }

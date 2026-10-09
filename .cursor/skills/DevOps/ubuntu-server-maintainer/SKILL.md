@@ -1,20 +1,15 @@
 ---
-name: ubuntu-server-by-armin
+name: ubuntu-server-maintainer
 description: >-
-  General-purpose Ubuntu server operations over SSH: connect, inspect,
-  configure, and troubleshoot safely with modern commands and least privilege.
-  Use for any Ubuntu host; host-specific skills (for example irancell-t3) layer
-  on top of this skill.
+  General-purpose Ubuntu server operations over SSH: connect, inspect, configure, and troubleshoot safely with modern commands and least privilege. Use for any Ubuntu host; host-specific skills (for example irancell-t3) layer on top of this skill.
 disable-model-invocation: false
 metadata:
-  version: "1.0.0"
-  author: Armin Dashti
-  category: ubuntu
+  version: 1.0.0
+  author: "Armin Dashti"
   tags: [ubuntu, ssh, server, devops, linux, systemctl]
   last_updated: "2026-09-11 18:53:00"
   uuid: cadafd3d-f09a-4b92-88ab-1c3542f1044e
 ---
-
 # Ubuntu Server by Armin
 
 ## When to use

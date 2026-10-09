@@ -1,9 +1,9 @@
 // Builds janus-webui with VITE_API_BASE_URL='' so the bundle is same-origin
-// (getApiBase() folds `?? 'http://127.0.0.1:8005'` away -> `return ""`).
+// (getApiBase() folds `?? 'http://127.0.0.1:47911'` away -> `return ""`).
 //
 // Why this file exists: neither PowerShell nor cmd.exe can hand a child process a
 // PRESENT-but-EMPTY environment variable — `$env:X = ''` and `set X=` both DELETE the
-// variable instead, which makes Vite fall back to the hardcoded http://127.0.0.1:8005
+// variable instead, which makes Vite fall back to the hardcoded http://127.0.0.1:47911
 // base (caught by the same-origin guard in build-janus-exe.ps1). Node can set it
 // programmatically (process.env.X = ''), so we spawn npm-cli.js from node with the
 // variable injected. Keep in sync with package.json `build` in janus-webui.

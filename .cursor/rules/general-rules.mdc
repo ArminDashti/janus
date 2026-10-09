@@ -1,8 +1,14 @@
 ---
-description: After every task in janus, rebuild and update the local Janus install so the latest changes are live
+description: >-
+  After every task in janus, rebuild and update the local Janus install so the latest changes are live
 alwaysApply: true
+metadata:
+  version: 1.0.0
+  author: "Armin Dashti"
+  tags: []
+  last_updated: "2026-10-08 22:11:19"
+  uuid: fe162886-8903-4bf3-b3d9-d1cdeee97fe9
 ---
-
 # Rebuild and update after every task
 
 When you finish any task that changes code, config or anything else the running app uses, rebuild and update the local install before you report back. Run commands from the repo root.

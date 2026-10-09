@@ -1,19 +1,15 @@
 ---
-name: code-removal
+name: code-pruning
 description: >-
-  Safely removes dead or orphan code — unused symbols, imports, blocks, and
-  unused files/modules with no connections to live code. Use when cleaning
-  dead code, orphan modules, unused imports, or unused files from the tree.
+  Safely removes dead or orphan code — unused symbols, imports, blocks, and unused files/modules with no connections to live code. Use when cleaning dead code, orphan modules, unused imports, or unused files from the tree.
 disable-model-invocation: false
 metadata:
-  version: "1.2.0"
-  author: Armin Dashti
-  category: refactor
+  version: 1.2.0
+  author: "Armin Dashti"
   tags: [dead-code, orphan, cleanup, unused-files]
   last_updated: "2026-08-02 12:03:00"
   uuid: 2c699555-9c5c-40b1-aa40-df0341cfee00
 ---
-
 # Code Removal (Dead / Orphan Only)
 
 ## When to use

@@ -5,15 +5,17 @@ import { Toggle } from '@renderer/components/Toggle'
 import { cn } from '@renderer/lib/utils'
 import { showMessage } from '@renderer/stores/messageStore'
 
-type AssignableResourceType = Extract<ResourceType, 'skill' | 'rule'>
+type AssignableResourceType = Extract<ResourceType, 'skill'>
 
 interface ProjectPanelProps {
   resourceType: AssignableResourceType
   /** groupKey/name of the selected resource; null shows the placeholder state. */
   resourceName: string | null
-  /** Human label used in the empty-state copy ("skill" / "rule"). */
+  /** Human label used in the empty-state copy ("skill"). */
   resourceLabel: string
   onRefresh?: () => void
+  /** Fired after unassigning the last project (skill may leave the list). */
+  onRemovedFromAllProjects?: () => void
 }
 
 /**
@@ -24,7 +26,8 @@ export function ProjectPanel({
   resourceType,
   resourceName,
   resourceLabel,
-  onRefresh
+  onRefresh,
+  onRemovedFromAllProjects
 }: ProjectPanelProps) {
   const [rows, setRows] = useState<ProjectMatrixRow[]>([])
   const [pending, setPending] = useState<Record<string, boolean>>({})
@@ -115,9 +118,14 @@ export function ProjectPanel({
     const nextAssigned: Record<string, boolean> = {}
     for (const r of projectRows) nextAssigned[r.projectId] = effectiveAssigned[r.projectId] ?? false
     nextAssigned[projectId] = next
-    if (!Object.values(nextAssigned).some(Boolean)) {
-      await showMessage({ message: 'At least one project must be assigned.', type: 'error' })
-      return
+    if (!next && !Object.values(nextAssigned).some(Boolean)) {
+      const confirmed = await showMessage({
+        title: `Remove ${resourceLabel}`,
+        message: `This is the only project using this ${resourceLabel}. Unassigning it removes the ${resourceLabel} from all projects and it will disappear from the list.`,
+        confirm: true,
+        type: 'error'
+      })
+      if (!confirmed) return
     }
 
     setPending((p) => ({ ...p, [projectId]: next }))
@@ -130,6 +138,7 @@ export function ProjectPanel({
       const mandatory = projectRows.length > 0 && projectRows.every((r) => nextAssigned[r.projectId])
       await window.agentManager.setMandatory(resourceType, resourceName, mandatory)
       onRefresh?.()
+      if (assignedIds.length === 0) onRemovedFromAllProjects?.()
       // Sync rows so future toggles have correct base
       setRows((prev) =>
         prev.map((r) => (r.projectId === projectId ? { ...r, assigned: next } : r))

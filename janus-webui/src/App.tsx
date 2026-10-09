@@ -6,20 +6,15 @@ import { useAppStore } from '@renderer/stores/appStore'
 
 import { SkillsPage } from '@renderer/pages/SkillsPage'
 
-import { RulesPage } from '@renderer/pages/RulesPage'
-
-import { HooksPage } from '@renderer/pages/HooksPage'
-
 import { SubAgentsPage } from '@renderer/pages/SubAgentsPage'
 
 import { McpsPage } from '@renderer/pages/McpsPage'
 
-import { RepositoriesPage } from '@renderer/pages/RepositoriesPage'
+import { ProjectsPage } from '@renderer/pages/ProjectsPage'
 
-import { SettingsPage } from '@renderer/pages/SettingsPage'
+import { SettingsModal } from '@renderer/components/settings/SettingsModal'
 
-import { AboutPage } from '@renderer/pages/AboutPage'
-import { InstructionsPage } from '@renderer/pages/InstructionsPage'
+import { AboutModal } from '@renderer/components/about/AboutModal'
 import { MessageModal } from '@renderer/components/MessageModal'
 import { applyTheme } from '@renderer/lib/themes'
 
@@ -121,14 +116,6 @@ export default function App() {
 
         return <SkillsPage />
 
-      case 'rules':
-
-        return <RulesPage />
-
-      case 'hooks':
-
-        return <HooksPage />
-
       case 'subagents':
 
         return <SubAgentsPage />
@@ -137,21 +124,9 @@ export default function App() {
 
         return <McpsPage />
 
-      case 'repositories':
+      case 'projects':
 
-        return <RepositoriesPage />
-
-      case 'settings':
-
-        return <SettingsPage />
-
-      case 'instructions':
-
-        return <InstructionsPage />
-
-      case 'about':
-
-        return <AboutPage />
+        return <ProjectsPage />
 
       default:
 
@@ -169,6 +144,8 @@ export default function App() {
 
       <div className="flex-1 min-h-0 overflow-hidden">{content}</div>
       <MessageModal />
+      <SettingsModal />
+      <AboutModal />
 
     </AppLayout>
 

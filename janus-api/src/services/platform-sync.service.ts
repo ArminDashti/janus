@@ -1,44 +1,33 @@
 import { existsSync } from 'fs'
 import type {
-  HookResource,
   PlatformConfig,
   ResourceType,
-  RuleResource,
   ScanResult,
   SkillResource,
   SubAgentResource
 } from '../shared/types'
-import { ruleDisplayName } from '../shared/rule-names'
 import { assignmentService } from './assignment.service'
 import { fileService } from './file.service'
+import { platformCleanupService } from './platform-cleanup.service'
 import { projectBootstrapService } from './project-bootstrap.service'
 import { scannerService } from './scanner.service'
 import { settingsStore } from './settings-store'
 import { getAdapter } from '../platforms'
 
-type ScannedResource =
-  | SkillResource
-  | RuleResource
-  | HookResource
-  | SubAgentResource
+type ScannedResource = SkillResource | SubAgentResource
 
-const FILL_TYPES: Array<Exclude<ResourceType, 'mcp'>> = ['skill', 'rule', 'hook', 'subAgent']
+const FILL_TYPES: Array<Exclude<ResourceType, 'mcp'>> = ['skill', 'subAgent']
 
 function getItems(scan: ScanResult, resourceType: Exclude<ResourceType, 'mcp'>): ScannedResource[] {
   switch (resourceType) {
     case 'skill':
       return scan.skills
-    case 'rule':
-      return scan.rules
-    case 'hook':
-      return scan.hooks
     case 'subAgent':
       return scan.subAgents
   }
 }
 
-function resourceKey(item: ScannedResource, resourceType: Exclude<ResourceType, 'mcp'>): string {
-  if (resourceType === 'rule') return ruleDisplayName(item.name)
+function resourceKey(item: ScannedResource): string {
   return item.name
 }
 
@@ -66,7 +55,7 @@ export async function syncEnabledPlatformsToProjects(): Promise<void> {
     for (const item of getItems(scan, resourceType)) {
       if (item.source.type !== 'project') continue
 
-      const name = resourceKey(item, resourceType)
+      const name = resourceKey(item)
       const projectId = item.source.id
       const dedupeKey = `${resourceType}:${name}:${projectId}`
       if (seen.has(dedupeKey)) continue
@@ -74,7 +63,7 @@ export async function syncEnabledPlatformsToProjects(): Promise<void> {
 
       // Prefer a project instance as canonical source for copying
       const sameName = getItems(scan, resourceType).filter((candidate) => {
-        if (resourceKey(candidate, resourceType) !== name) return false
+        if (resourceKey(candidate) !== name) return false
         return true
       })
       const canonical =
@@ -152,6 +141,30 @@ export async function applyMcpEnableCascade(
   return result
 }
 
+/**
+ * Disable cascade: delete the project-level folders of platforms that were just
+ * unselected in Settings. Uses each platform's previous projectDirName (the
+ * folder actually on disk); names still claimed by an enabled platform are
+ * skipped by the cleanup service.
+ */
+export async function removeUnselectedPlatformFolders(
+  previousPlatforms: PlatformConfig[],
+  nextPlatforms: PlatformConfig[]
+): Promise<void> {
+  const turnedOff = previousPlatforms.filter((p) => {
+    if (!p.enabled) return false
+    const next = nextPlatforms.find((q) => q.id === p.id)
+    return next === undefined || !next.enabled
+  })
+  if (turnedOff.length === 0) return
+
+  const result = await platformCleanupService.purgeUnselectedFromProjects(turnedOff)
+  if (result.errors.length > 0) {
+    throw new Error(`Failed to remove unselected IDE project folders: ${result.errors.join('; ')}`)
+  }
+}
+
 export const platformSyncService = {
-  syncEnabledPlatformsToProjects
+  syncEnabledPlatformsToProjects,
+  removeUnselectedPlatformFolders
 }

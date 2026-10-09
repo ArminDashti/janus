@@ -15,24 +15,14 @@ export class RepoBankService {
   }
 
   async writeResourceFile(
-    resourceType: 'skill' | 'rule' | 'hook' | 'subAgent',
+    resourceType: 'skill' | 'subAgent',
     name: string,
     relativePath: string,
     content: string
   ): Promise<string> {
     const clonePath = await this.ensureClone()
-    const typeDir =
-      resourceType === 'skill'
-        ? 'skills'
-        : resourceType === 'rule'
-          ? 'rules'
-          : resourceType === 'hook'
-            ? 'hooks'
-            : 'agents'
-    const dest =
-      resourceType === 'hook'
-        ? join(clonePath, typeDir, relativePath)
-        : join(clonePath, typeDir, name, relativePath)
+    const typeDir = resourceType === 'skill' ? 'skills' : 'agents'
+    const dest = join(clonePath, typeDir, name, relativePath)
     await fileService.writeText(dest, content)
     return dest
   }

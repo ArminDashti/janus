@@ -3,7 +3,7 @@ import { existsSync } from 'fs'
 import { basename, dirname, extname, join } from 'path'
 import { getTrashPath } from '../app-paths'
 
-export type TrashResourceKind = 'skills' | 'rules' | 'hooks' | 'subAgents'
+export type TrashResourceKind = 'skills' | 'subAgents'
 
 export class FileService {
   async readText(filePath: string): Promise<string> {
@@ -112,7 +112,7 @@ export class FileService {
     return trashDir
   }
 
-  /** Write meta-only trash entry (e.g. hook config snippet without a file move). */
+  /** Write meta-only trash entry (no file move). */
   async writeTrashMeta(
     kind: TrashResourceKind,
     name: string,

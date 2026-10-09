@@ -4,7 +4,7 @@ import { GLOBAL_TARGET_KEY } from '@shared/types'
 import { useAppStore } from '@renderer/stores/appStore'
 import { showMessage } from '@renderer/stores/messageStore'
 
-type CreatableResourceType = 'skill' | 'rule' | 'hook' | 'subAgent'
+type CreatableResourceType = 'skill' | 'subAgent'
 
 interface AddResourceModalProps {
   resourceType: CreatableResourceType
@@ -14,8 +14,6 @@ interface AddResourceModalProps {
 
 const TYPE_LABELS: Record<CreatableResourceType, string> = {
   skill: 'Skill',
-  rule: 'Rule',
-  hook: 'Hook',
   subAgent: 'Sub-agent'
 }
 
@@ -25,7 +23,7 @@ export function AddResourceModal({ resourceType, onClose, onCreated }: AddResour
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [saving, setSaving] = useState(false)
   const isSkill = resourceType === 'skill'
-  const supportsGlobal = resourceType !== 'rule'
+  const supportsGlobal = true
 
   const projects = useMemo(
     () => settings?.projectRoots.flatMap((r) => r.projects) ?? [],
@@ -209,5 +207,5 @@ export function AddResourceModal({ resourceType, onClose, onCreated }: AddResour
 }
 
 export function isCreatableResourceType(type: ResourceType): type is CreatableResourceType {
-  return type === 'skill' || type === 'rule' || type === 'hook' || type === 'subAgent'
+  return type === 'skill' || type === 'subAgent'
 }

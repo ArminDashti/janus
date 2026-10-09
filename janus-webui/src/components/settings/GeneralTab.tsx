@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
+import { Rocket } from 'lucide-react'
 import type { AppSettings } from '@shared/types'
 import { useAppStore } from '@renderer/stores/appStore'
 import { showMessage } from '@renderer/stores/messageStore'
 import { Toggle } from '@renderer/components/Toggle'
+import { SettingsSection } from '@renderer/components/settings/SettingsSection'
 
 interface GeneralTabProps {
   settings: AppSettings
@@ -35,29 +37,31 @@ export function GeneralTab({ settings, onChange }: GeneralTabProps) {
   }
 
   return (
-    <div className="space-y-8">
-      <section className="space-y-3">
-        <h3 className="text-sm font-medium text-zinc-400 uppercase">Startup</h3>
-        <p className="text-xs text-zinc-500">
-          Launch Janus automatically when you sign in to Windows.
-        </p>
-        <div className="flex items-center justify-between gap-4 max-w-md rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2.5">
-          <span className="text-sm text-zinc-300">Run Janus when Windows starts</span>
+    <div className="space-y-6">
+      <SettingsSection
+        icon={Rocket}
+        title="Startup"
+        description="Launch Janus automatically when you sign in to Windows."
+      >
+        <div className="flex items-center justify-between gap-4 max-w-md rounded-lg border border-zinc-800 bg-zinc-950/50 px-4 py-3">
+          <span className="text-sm text-zinc-200">Run Janus when Windows starts</span>
           <Toggle
             checked={runOnLogin}
             onChange={setRunOnLogin}
             ariaLabel="Run Janus when Windows starts"
           />
         </div>
-      </section>
+      </SettingsSection>
 
-      <button
-        type="button"
-        onClick={() => void saveGeneral()}
-        className="px-4 py-2 text-sm bg-emerald-700 rounded"
-      >
-        Save general settings
-      </button>
+      <div>
+        <button
+          type="button"
+          onClick={() => void saveGeneral()}
+          className="px-4 py-2 text-sm bg-emerald-700 hover:bg-emerald-600 rounded-lg"
+        >
+          Save general settings
+        </button>
+      </div>
     </div>
   )
 }

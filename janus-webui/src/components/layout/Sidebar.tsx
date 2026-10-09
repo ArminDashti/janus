@@ -2,17 +2,14 @@ import { useEffect, useState } from 'react'
 
 import {
   Layers,
-  FileText,
-  GitBranch,
   Bot,
   Cable,
   Settings2,
   CircleHelp,
   ChevronLeft,
   ChevronRight,
-  BookOpen,
-  RefreshCw,
-  FolderGit2
+  FolderGit2,
+  ArrowLeftRight
 } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { CollapsibleNavGroup } from './CollapsibleNavGroup'
@@ -30,15 +27,9 @@ interface NavItem {
 
 const resourceNav: NavItem[] = [
   { id: 'skills', label: 'Skills', icon: Layers },
-  { id: 'rules', label: 'Rules', icon: FileText },
-  { id: 'hooks', label: 'Hooks', icon: GitBranch },
   { id: 'subagents', label: 'Sub-agents', icon: Bot },
   { id: 'mcps', label: 'MCPs', icon: Cable },
-  { id: 'repositories', label: 'Repositories', icon: FolderGit2 }
-]
-
-const otherNav: NavItem[] = [
-  { id: 'instructions', label: 'Instructions', icon: BookOpen }
+  { id: 'projects', label: 'Projects', icon: FolderGit2 }
 ]
 
 const footerNav: NavItem[] = [
@@ -72,9 +63,9 @@ function NavButton({
       title={collapsed ? item.label : undefined}
       onClick={() => onNavigate(item.id)}
       className={cn(
-        'w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors',
+        'w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[13px] transition-colors',
         collapsed && 'justify-center px-2',
-        active ? 'bg-accent/20 text-accent' : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
+        active ? 'bg-accent text-white' : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
       )}
     >
       <Icon size={16} strokeWidth={1.75} className="shrink-0" />
@@ -105,8 +96,8 @@ export function useSidebarCollapsed(): [boolean, () => void] {
 }
 
 export function Sidebar({ page, onNavigate, collapsed, onToggleCollapse }: SidebarProps) {
-  const { refreshScan, loadSettings } = useAppStore()
-  const [refreshing, setRefreshing] = useState(false)
+  const { syncNow, loadSettings, settingsOpen, openSettings, aboutOpen, openAbout } = useAppStore()
+  const [syncing, setSyncing] = useState(false)
   const [iconSrc, setIconSrc] = useState<string | null>(null)
 
   useEffect(() => {
@@ -115,13 +106,13 @@ export function Sidebar({ page, onNavigate, collapsed, onToggleCollapse }: Sideb
     })
   }, [])
 
-  const handleDeepRefresh = async () => {
-    setRefreshing(true)
+  const handleSync = async () => {
+    setSyncing(true)
     try {
       await loadSettings()
-      await refreshScan()
+      await syncNow()
     } finally {
-      setRefreshing(false)
+      setSyncing(false)
     }
   }
 
@@ -159,7 +150,7 @@ export function Sidebar({ page, onNavigate, collapsed, onToggleCollapse }: Sideb
       </div>
 
       <nav className="flex-1 px-2 py-2 space-y-0.5 overflow-auto">
-        <CollapsibleNavGroup label="Resources" storageKey="nav-resources-open" collapsed={collapsed}>
+        <CollapsibleNavGroup label="Resources" collapsed={collapsed}>
           {resourceNav.map((item) => (
             <NavButton
               key={item.id}
@@ -171,35 +162,24 @@ export function Sidebar({ page, onNavigate, collapsed, onToggleCollapse }: Sideb
           ))}
         </CollapsibleNavGroup>
 
-        <CollapsibleNavGroup label="Other" storageKey="nav-other-open" collapsed={collapsed}>
-          {otherNav.map((item) => (
-            <NavButton
-              key={item.id}
-              item={item}
-              active={page === item.id}
-              collapsed={collapsed}
-              onNavigate={onNavigate}
-            />
-          ))}
-          <button
-            type="button"
-            title="Deep refresh – reload all skills, hooks, rules, settings"
-            onClick={() => void handleDeepRefresh()}
-            disabled={refreshing}
-            className={cn(
-              'w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors',
-              collapsed && 'justify-center px-2',
-              'text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-40'
-            )}
-          >
-            <RefreshCw
-              size={16}
-              strokeWidth={1.75}
-              className={cn('shrink-0', refreshing && 'animate-spin')}
-            />
-            {!collapsed && <span className="truncate">Refresh all</span>}
-          </button>
-        </CollapsibleNavGroup>
+        <button
+          type="button"
+          title="Sync – reload settings, re-copy the latest version of every assigned resource into all enabled IDE/CLI locations, and rescan all skills, sub-agents, and MCPs"
+          onClick={() => void handleSync()}
+          disabled={syncing}
+          className={cn(
+            'w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[13px] transition-colors',
+            collapsed && 'justify-center px-2',
+            'text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-40'
+          )}
+        >
+          <ArrowLeftRight
+            size={16}
+            strokeWidth={1.75}
+            className={cn('shrink-0', syncing && 'animate-spin')}
+          />
+          {!collapsed && <span className="truncate">Sync</span>}
+        </button>
       </nav>
 
       <div className="mt-auto border-t border-surface-border px-2 py-2 space-y-0.5">
@@ -207,9 +187,21 @@ export function Sidebar({ page, onNavigate, collapsed, onToggleCollapse }: Sideb
           <NavButton
             key={item.id}
             item={item}
-            active={page === item.id}
+            active={
+              item.id === 'settings'
+                ? settingsOpen
+                : item.id === 'about'
+                  ? aboutOpen
+                  : page === item.id
+            }
             collapsed={collapsed}
-            onNavigate={onNavigate}
+            onNavigate={
+              item.id === 'settings'
+                ? () => openSettings()
+                : item.id === 'about'
+                  ? () => openAbout()
+                  : onNavigate
+            }
           />
         ))}
         <div

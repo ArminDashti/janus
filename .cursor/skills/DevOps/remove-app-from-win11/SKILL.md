@@ -1,18 +1,15 @@
 ---
-name: remove-app
+name: remove-app-from-win11
 description: >-
-  Finds and cleanly removes Windows 11 apps (Win32 / Store / provisioned)
-  with inventory, uninstall, leftover check, and optional cleanup.
+  Finds and cleanly removes Windows 11 apps (Win32 / Store / provisioned) with inventory, uninstall, leftover check, and optional cleanup.
 disable-model-invocation: false
 metadata:
-  version: "1.0.0"
-  author: Armin Dashti
-  category: windows-11
+  version: 1.0.0
+  author: "Armin Dashti"
   tags: [uninstall, appx, winget, cleanup, windows-11]
   last_updated: "2026-09-11 18:15:00"
   uuid: 5a4c33e6-e848-4d96-826c-171b3383ea93
 ---
-
 # Remove App
 
 ## When

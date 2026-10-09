@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="256px" height="256px" viewBox="0 0 256 256" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" preserveAspectRatio="xMidYMid">
+    <title>Claude</title>
+    <g>
+        <path d="M128,42 L138.5,96.5 L186,66 L156.5,113.5 L211,124 L156.5,134.5 L186,182 L138.5,151.5 L128,206 L117.5,151.5 L70,182 L99.5,134.5 L45,124 L99.5,113.5 L70,66 L117.5,96.5 Z" fill="#d97757"></path>
+    </g>
+</svg>

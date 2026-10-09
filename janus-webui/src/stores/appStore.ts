@@ -3,18 +3,21 @@ import type { AppSettings, ScanResult } from '@shared/types'
 
 export type PageId =
   | 'skills'
-  | 'rules'
-  | 'hooks'
   | 'subagents'
   | 'mcps'
-  | 'repositories'
+  | 'projects'
   | 'settings'
-  | 'instructions'
   | 'about'
 
 interface AppState {
   page: PageId
   setPage: (page: PageId) => void
+  settingsOpen: boolean
+  openSettings: () => void
+  closeSettings: () => void
+  aboutOpen: boolean
+  openAbout: () => void
+  closeAbout: () => void
   settings: AppSettings | null
   setSettings: (settings: AppSettings) => void
   scan: ScanResult | null
@@ -22,20 +25,35 @@ interface AppState {
   loading: boolean
   setLoading: (loading: boolean) => void
   refreshScan: (options?: { probeMcps?: boolean }) => Promise<void>
+  syncNow: () => Promise<void>
   loadSettings: () => Promise<void>
 }
 
 const emptyScan: ScanResult = {
   skills: [],
-  rules: [],
   mcps: [],
-  hooks: [],
   subAgents: []
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
   page: 'skills',
-  setPage: (page) => set({ page }),
+  setPage: (page) => {
+    if (page === 'settings') {
+      set({ settingsOpen: true, aboutOpen: false })
+      return
+    }
+    if (page === 'about') {
+      set({ aboutOpen: true, settingsOpen: false })
+      return
+    }
+    set({ page, settingsOpen: false, aboutOpen: false })
+  },
+  settingsOpen: false,
+  openSettings: () => set({ settingsOpen: true, aboutOpen: false }),
+  closeSettings: () => set({ settingsOpen: false }),
+  aboutOpen: false,
+  openAbout: () => set({ aboutOpen: true, settingsOpen: false }),
+  closeAbout: () => set({ aboutOpen: false }),
   settings: null,
   setSettings: (settings) => set({ settings }),
   scan: null,
@@ -51,7 +69,20 @@ export const useAppStore = create<AppState>((set, get) => ({
     const isInitial = get().scan == null
     if (isInitial) set({ loading: true })
     try {
-      const scan = await window.agentManager.scanAll(options)
+      const [scan, settings] = await Promise.all([
+        window.agentManager.scanAll(options),
+        window.agentManager.getSettings()
+      ])
+      set({ scan, settings })
+    } finally {
+      if (isInitial) set({ loading: false })
+    }
+  },
+  syncNow: async () => {
+    const isInitial = get().scan == null
+    if (isInitial) set({ loading: true })
+    try {
+      const scan = await window.agentManager.syncNow()
       set({ scan })
     } finally {
       if (isInitial) set({ loading: false })

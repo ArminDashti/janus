@@ -1,5 +1,5 @@
 import type { AgentManagerApi } from './types'
-import type { AppSettings, PlatformId } from '@shared/types'
+import type { AppSettings, PlatformId, ScanResult, UpdateApplyResult, UpdateCheckResult } from '@shared/types'
 
 function getApiBase(): string {
   if (typeof window !== 'undefined') {
@@ -9,7 +9,7 @@ function getApiBase(): string {
         return `${protocol}//janus-api.local`
       }
       if (port === '8006') {
-        return `${protocol}//janus-api.local:8005`
+        return `${protocol}//janus-api.local:47911`
       }
       if (port === '7071') {
         return `${protocol}//janus-api.local:7070`
@@ -17,7 +17,7 @@ function getApiBase(): string {
       return `${protocol}//janus-api.local:${port}`
     }
   }
-  return import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8005'
+  return import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:47911'
 }
 
 export function getApiBaseUrl(): string {
@@ -72,10 +72,22 @@ export const agentManagerClient: AgentManagerApi = {
       method: 'POST'
     }),
 
+  checkForUpdates: () => request<UpdateCheckResult>('/api/updates/check'),
+
+  applyUpdate: () =>
+    request<UpdateApplyResult>('/api/updates/apply', {
+      method: 'POST'
+    }),
+
   scanAll: (options) => {
     const probe = options?.probeMcps ? 'true' : 'false'
     return request(`/api/scan?probeMcps=${probe}`)
   },
+
+  syncNow: () =>
+    request<ScanResult>('/api/sync', {
+      method: 'POST'
+    }),
 
   discoverProjects: (scanPath) =>
     request(`/api/scan/projects?path=${encodeQuery(scanPath)}`),
@@ -220,26 +232,9 @@ export const agentManagerClient: AgentManagerApi = {
   },
 
   writeSkillMd: (filePath, content, currentResourceName) =>
-    request<boolean>('/api/files/skill-md', {
+    request<{ filePath: string }>('/api/files/skill-md', {
       method: 'PUT',
       body: JSON.stringify({ filePath, content, currentResourceName })
-    }),
-
-  listInstructions: () => request<string[]>('/api/instructions'),
-
-  readInstruction: (name) =>
-    request<string>(`/api/instructions/${encodeURIComponent(name)}`),
-
-  saveInstruction: (name, content) =>
-    request<boolean>(`/api/instructions/${encodeURIComponent(name)}`, {
-      method: 'PUT',
-      body: JSON.stringify({ content })
-    }),
-
-  createInstruction: (name) =>
-    request<string>('/api/instructions', {
-      method: 'POST',
-      body: JSON.stringify({ name })
     }),
 
   apiRefactor: (params) =>
