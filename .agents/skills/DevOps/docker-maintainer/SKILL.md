@@ -1,18 +1,15 @@
 ---
-name: docker-status-local
+name: docker-maintainer
 description: >-
-  Reports local Docker daemon, containers, images, networks, and published
-  ports status for troubleshooting deploys.
+  Reports local Docker daemon, containers, images, networks, and published ports status for troubleshooting deploys.
 disable-model-invocation: false
 metadata:
-  version: "1.0.1"
-  author: Armin Dashti
-  category: devops
+  version: 1.0.1
+  author: "Armin Dashti"
   tags: [docker, status, local, containers, ports]
   last_updated: "2026-08-15 13:52:00"
   uuid: e9594d41-4b92-485f-bf5d-8fc17128a29f
 ---
-
 # Docker Status Local
 
 ## When to use

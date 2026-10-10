@@ -1,19 +1,15 @@
 ---
-name: create-repos
+name: create-github-repo
 description: >-
-  Creates one public GitHub umbrella repository per app name and scaffolds
-  Gin plus PostgreSQL API and Vue, Tailwind, Shadcn, Inter WebUI as sibling
-  folders *-api and *-webui inside that single repo unless the user overrides.
+  Creates one public GitHub umbrella repository per app name and scaffolds Gin plus PostgreSQL API and Vue, Tailwind, Shadcn, Inter WebUI as sibling folders *-api and *-webui inside that single repo unless the user overrides.
 disable-model-invocation: false
 metadata:
-  version: "2.0.0"
-  author: Armin Dashti
-  category: github
+  version: 2.0.0
+  author: "Armin Dashti"
   tags: [github, repos, umbrella, gin, postgresql, vue, shadcn, scaffold, public]
   last_updated: "2026-08-30 18:12:24"
   uuid: 3bfd1d23-f052-42d2-a3b4-cfd89676f3a2
 ---
-
 ## Overview
 - It must create repository in user GitHub account.
 

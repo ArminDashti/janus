@@ -1,19 +1,15 @@
 ---
-name: suggest-for-improving
+name: suggestion-by-armin
 description: >-
-  Lists real improvement suggestions across any relevant domain (security,
-  UI/UX, REST, and others) as a Title / Description markdown table,
-  with a red or blue circle beside each title and no filler.
+  Lists real improvement suggestions across any relevant domain (security, UI/UX, REST, and others) as a Title / Description markdown table, with a red or blue circle beside each title and no filler.
 disable-model-invocation: false
 metadata:
-  version: "2.2.0"
-  author: Armin Dashti
-  category: communication
+  version: 2.2.0
+  author: "Armin Dashti"
   tags: [suggest, improve, security, ux, restful, recommendations]
   last_updated: "2026-09-02 15:15:00"
   uuid: 9dafc510-046e-4401-825c-e4ac405a9de9
 ---
-
 # Suggest for Improving
 
 ## When

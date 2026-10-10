@@ -1,18 +1,15 @@
 ---
-name: porpose-app-architecture
+name: porpose-software-architecture
 description: >-
-  Proposes a fit-for-purpose application architecture from requirements and
-  constraints, with trade-offs, boundaries, and a phased adoption path.
+  Proposes a fit-for-purpose application architecture from requirements and constraints, with trade-offs, boundaries, and a phased adoption path.
 disable-model-invocation: false
 metadata:
-  version: "1.0.0"
-  author: Armin Dashti
-  category: architecture
+  version: 1.0.0
+  author: "Armin Dashti"
   tags: [architecture, propose, design, trade-offs, modular, clean]
   last_updated: "2026-08-03 23:10:00"
   uuid: a7ee7f6c-9ea1-421d-b271-70210a384dbc
 ---
-
 # Propose App Architecture
 
 ## When to use

@@ -6,7 +6,7 @@ metadata:
   version: 1.0.0
   author: "Armin Dashti"
   tags: []
-  last_updated: "2026-09-26 17:25:02"
+  last_updated: "2026-10-08 22:11:19"
   uuid: 2ebef276-865b-4760-9b07-06e1b1870797
 ---
 # lean-ctx — Local Context SDK for AI Agents

@@ -1,5 +1,5 @@
 ---
-name: create-powershell-docker-local-scripts
+name: create-powershell-local-docker-scripts
 description: >-
   Generates PowerShell install/remove scripts for a local Docker app. Ensures safe updates (data-preserving), host+container networking, CLI PATH registration, colored output, and full teardown. Mandates agent testing.
 disable-model-invocation: false

@@ -1,5 +1,5 @@
 ---
-name: completion-report
+name: completion-report-by-armin
 description: >-
   Generates a structured end-of-task report (Changes, Suggestions, Risks, Tools, Learning, Prompt Analysis) ONLY when a task is completely finished.
 disable-model-invocation: false

@@ -1,10 +1,10 @@
 ---
-name: software_versioning
-description: Mandatory semantic versioning and changelog management for GitHub commits/pushes.
+name: software-versioning
+description: >-
+  Mandatory semantic versioning and changelog management for GitHub commits/pushes.
 metadata:
   version: 1.0.0
   author: "Armin Dashti"
-  category: architecture
   tags: [semver, changelog, github]
   last_updated: "2026-08-02 10:46:02"
   uuid: d1c8186f-fe79-45df-bec6-15f2fbec7f9a

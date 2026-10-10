@@ -1,18 +1,15 @@
 ---
-name: resource-managing
+name: resource-managing-win11
 description: >-
-  Diagnoses and eases Windows 11 CPU, RAM, disk, and GPU pressure; finds
-  top consumers and applies safe cleanup only when requested.
+  Diagnoses and eases Windows 11 CPU, RAM, disk, and GPU pressure; finds top consumers and applies safe cleanup only when requested.
 disable-model-invocation: false
 metadata:
-  version: "1.0.0"
-  author: Armin Dashti
-  category: windows-11
+  version: 1.0.0
+  author: "Armin Dashti"
   tags: [cpu, ram, disk, gpu, performance, cleanup]
   last_updated: "2026-09-11 18:15:00"
   uuid: 660dd977-d795-4499-aeb4-fb06d38870ad
 ---
-
 # Resource Managing
 
 ## When
