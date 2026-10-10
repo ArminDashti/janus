@@ -1,4 +1,4 @@
-import type { AgentManagerApi } from './types'
+import type { AgentManagerApi, HubSkill, HubSource } from './types'
 import type { AppSettings, PlatformId, ScanResult, UpdateApplyResult, UpdateCheckResult } from '@shared/types'
 
 function getApiBase(): string {
@@ -241,6 +241,17 @@ export const agentManagerClient: AgentManagerApi = {
     request<{ content: string }>('/api/refactor', {
       method: 'POST',
       body: JSON.stringify(params)
+    }),
+
+  hubSources: () => request<HubSource[]>('/api/hub/sources'),
+
+  hubSkills: (sourceId) =>
+    request<HubSkill[]>(`/api/hub/sources/${encodeURIComponent(sourceId)}/skills`),
+
+  importHubSkill: (sourceId, skillPath) =>
+    request<string>('/api/hub/import', {
+      method: 'POST',
+      body: JSON.stringify({ sourceId, skillPath })
     })
 }
 

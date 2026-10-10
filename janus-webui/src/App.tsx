@@ -12,6 +12,8 @@ import { McpsPage } from '@renderer/pages/McpsPage'
 
 import { ProjectsPage } from '@renderer/pages/ProjectsPage'
 
+import { HubPage } from '@renderer/pages/HubPage'
+
 import { SettingsModal } from '@renderer/components/settings/SettingsModal'
 
 import { AboutModal } from '@renderer/components/about/AboutModal'
@@ -127,6 +129,10 @@ export default function App() {
       case 'projects':
 
         return <ProjectsPage />
+
+      case 'hub':
+
+        return <HubPage />
 
       default:
 

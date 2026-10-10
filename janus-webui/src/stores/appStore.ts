@@ -6,6 +6,7 @@ export type PageId =
   | 'subagents'
   | 'mcps'
   | 'projects'
+  | 'hub'
   | 'settings'
   | 'about'
 

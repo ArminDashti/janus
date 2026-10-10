@@ -9,7 +9,8 @@ import {
   ChevronLeft,
   ChevronRight,
   FolderGit2,
-  ArrowLeftRight
+  ArrowLeftRight,
+  Store
 } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { CollapsibleNavGroup } from './CollapsibleNavGroup'
@@ -27,6 +28,7 @@ interface NavItem {
 
 const resourceNav: NavItem[] = [
   { id: 'skills', label: 'Skills', icon: Layers },
+  { id: 'hub', label: 'Hub', icon: Store },
   { id: 'subagents', label: 'Sub-agents', icon: Bot },
   { id: 'mcps', label: 'MCPs', icon: Cable },
   { id: 'projects', label: 'Projects', icon: FolderGit2 }

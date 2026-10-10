@@ -101,6 +101,23 @@ export interface AgentManagerApi {
     content: string
     userPrompt: string
   }) => Promise<{ content: string }>
+  hubSources: () => Promise<HubSource[]>
+  hubSkills: (sourceId: string) => Promise<HubSkill[]>
+  importHubSkill: (sourceId: string, skillPath: string) => Promise<string>
+}
+
+export interface HubSource {
+  id: string
+  label: string
+  owner: string
+  repo: string
+  branch: string
+  path: string
+}
+
+export interface HubSkill {
+  path: string
+  name: string
 }
 
 declare global {

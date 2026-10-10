@@ -33,6 +33,7 @@ import {
 } from '../services/watcher.service'
 import { getAdapter } from '../platforms'
 import { refactorWithActiveApi } from '../services/api-refactor.service'
+import { HUB_SOURCES, importHubSkill, listHubSkills } from '../services/hub.service'
 
 type NonMcpResourceType = Exclude<ResourceType, 'mcp'>
 type CreatableResourceType = 'skill' | 'subAgent'
@@ -837,6 +838,30 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         content: body.content,
         userPrompt: body.userPrompt
       })
+    })
+  )
+
+  app.get(
+    '/api/hub/sources',
+    route(async () => HUB_SOURCES)
+  )
+
+  app.get(
+    '/api/hub/sources/:sourceId/skills',
+    route(async (request) => {
+      const { sourceId } = request.params as { sourceId: string }
+      return listHubSkills(sourceId)
+    })
+  )
+
+  app.post(
+    '/api/hub/import',
+    route(async (request) => {
+      const body = request.body as { sourceId?: string; skillPath?: string }
+      if (!body.sourceId || !body.skillPath) {
+        throw new Error('sourceId and skillPath are required')
+      }
+      return importHubSkill(body.sourceId, body.skillPath)
     })
   )
 
