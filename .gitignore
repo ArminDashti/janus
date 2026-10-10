@@ -23,3 +23,21 @@ janus-api/node_modules/typescript/lib/typescript.js
 janus-webui/node_modules/@esbuild/win32-x64/esbuild.exe
 janus-webui/node_modules/typescript/lib/_tsc.js
 janus-webui/node_modules/typescript/lib/typescript.js
+
+# Generated / junk
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+logs/
+*.log
+.env
+.env.local
+.env.*.local
+.cache/
+.vite/
+.eslintcache
+coverage/
+*.zip
+graphify-out/
+.gitnexus/
